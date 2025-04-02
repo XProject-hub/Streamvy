@@ -94,7 +94,7 @@ export default function LiveTvPage() {
                 key={channel.id}
                 id={channel.id}
                 title={channel.name}
-                image={channel.logo}
+                image={channel.logo as string | undefined}
                 category={program?.title || "Live TV"}
                 subDetail={program?.description || "Live Channel"}
                 type="channel"

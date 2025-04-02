@@ -122,10 +122,10 @@ export default function MoviesPage() {
               key={movie.id}
               id={movie.id}
               title={movie.title}
-              image={movie.poster}
+              image={movie.poster as string | undefined}
               category={movie.year?.toString() || ""}
               subDetail={`${movie.duration} min`}
-              rating={movie.rating}
+              rating={movie.rating as string | undefined}
               type="movie"
               aspectRatio="poster"
               quality={movie.isPremium ? "PREMIUM" : "HD"}

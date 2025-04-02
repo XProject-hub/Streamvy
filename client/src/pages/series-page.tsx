@@ -122,10 +122,10 @@ export default function SeriesPage() {
               key={series.id}
               id={series.id}
               title={series.title}
-              image={series.poster}
+              image={series.poster as string | undefined}
               category={`${series.seasons} Seasons`}
               subDetail={series.startYear ? (series.endYear ? `${series.startYear}-${series.endYear}` : `${series.startYear}-`) : ""}
-              rating={series.rating}
+              rating={series.rating as string | undefined}
               type="series"
               aspectRatio="poster"
               quality={series.isPremium ? "PREMIUM" : "HD"}
