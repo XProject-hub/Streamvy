@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CategoryFilter } from "@/components/CategoryFilter";
 import { CountryFilter } from "@/components/CountryFilter";
@@ -32,6 +32,23 @@ export default function LiveTvPage() {
   const { data: currentPrograms } = useQuery<Program[]>({
     queryKey: ["/api/programs/current"],
   });
+  
+  // Fetch countries for flags
+  const { data: countries } = useQuery<Country[]>({
+    queryKey: ["/api/countries"],
+  });
+  
+  // Create a map of countryId to country for efficient lookups
+  const countryMap = useMemo(() => {
+    if (!countries) return new Map<number, Country>();
+    
+    const map = new Map<number, Country>();
+    countries.forEach(country => {
+      map.set(country.id, country);
+    });
+    
+    return map;
+  }, [countries]);
   
   // Filter channels by category
   const filteredChannels = channels?.filter(channel => {
@@ -99,6 +116,21 @@ export default function LiveTvPage() {
                 subDetail={program?.description || "Live Channel"}
                 type="channel"
                 isLive={true}
+                status={(channel.status || 'unknown') as 'online' | 'offline' | 'unknown'}
+                countryCode={
+                  channel.countryId && countryMap.get(channel.countryId) 
+                    ? (typeof countryMap.get(channel.countryId)?.code === 'string' 
+                      ? countryMap.get(channel.countryId)?.code as string 
+                      : undefined) 
+                    : undefined
+                }
+                countryFlag={
+                  channel.countryId && countryMap.get(channel.countryId) 
+                    ? (typeof countryMap.get(channel.countryId)?.flag === 'string' 
+                      ? countryMap.get(channel.countryId)?.flag as string 
+                      : undefined) 
+                    : undefined
+                }
               />
             );
           })}

@@ -322,7 +322,9 @@ export class MemStorage implements IStorage {
       logo: channel.logo ?? null,
       categoryId: channel.categoryId ?? null,
       countryId: channel.countryId ?? null,
-      epgId: channel.epgId ?? null
+      epgId: channel.epgId ?? null,
+      status: channel.status ?? 'unknown',
+      lastChecked: channel.lastChecked ?? null
     };
     this.channels.set(id, newChannel);
     return newChannel;
@@ -1731,9 +1733,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createChannel(channel: InsertChannel): Promise<Channel> {
+    // Ensure status has a default value if not provided
+    const channelWithDefaults = {
+      ...channel,
+      status: channel.status || 'unknown',
+      lastChecked: channel.lastChecked || null
+    };
+    
     const [newChannel] = await db
       .insert(channels)
-      .values(channel)
+      .values(channelWithDefaults)
       .returning();
     return newChannel;
   }

@@ -14,6 +14,9 @@ interface ContentCardProps {
   quality?: string;
   aspectRatio?: 'video' | 'poster';
   onClick?: () => void;
+  status?: 'online' | 'offline' | 'unknown';
+  countryCode?: string;
+  countryFlag?: string;
 }
 
 export function ContentCard({
@@ -27,7 +30,10 @@ export function ContentCard({
   isLive = false,
   quality = 'HD',
   aspectRatio = 'video',
-  onClick
+  onClick,
+  status = 'unknown',
+  countryCode,
+  countryFlag
 }: ContentCardProps) {
   const [_, setLocation] = useLocation();
 
@@ -60,8 +66,18 @@ export function ContentCard({
           className="w-full h-full object-cover" 
         />
         
-        {/* Live badge */}
-        {isLive && (
+        {/* Live or status badge */}
+        {isLive && type === 'channel' ? (
+          <div className={cn(
+            "absolute top-0 right-0 m-2 px-1.5 py-0.5 text-white text-xs rounded flex items-center",
+            status === 'online' ? "bg-green-600" : 
+            status === 'offline' ? "bg-red-600" : 
+            "bg-yellow-600"
+          )}>
+            <span className="w-1.5 h-1.5 rounded-full bg-white mr-1"></span>
+            {status === 'online' ? 'LIVE' : status === 'offline' ? 'DOWN' : 'UNKNOWN'}
+          </div>
+        ) : isLive && (
           <div className="absolute top-0 right-0 m-2 px-1.5 py-0.5 bg-red-600 text-white text-xs rounded flex items-center">
             <span className="w-1.5 h-1.5 rounded-full bg-white mr-1"></span>
             LIVE
@@ -72,6 +88,18 @@ export function ContentCard({
         {quality && !isLive && (
           <div className="absolute top-0 right-0 m-2 px-1.5 py-0.5 bg-yellow-500 text-gray-900 text-xs rounded">
             {quality}
+          </div>
+        )}
+        
+        {/* Country flag */}
+        {type === 'channel' && countryFlag && (
+          <div className="absolute bottom-0 left-0 m-2">
+            <img 
+              src={countryFlag}
+              alt={countryCode || 'country flag'}
+              className="w-6 h-4 rounded shadow-sm"
+              title={countryCode?.toUpperCase()}
+            />
           </div>
         )}
       </div>

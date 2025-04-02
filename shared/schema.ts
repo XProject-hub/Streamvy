@@ -58,6 +58,8 @@ export const channels = pgTable("channels", {
   countryId: integer("country_id").references(() => countries.id),
   epgId: text("epg_id"),
   streamSources: jsonb("stream_sources").notNull(), // Array of URLs with priority
+  status: text("status").default("unknown").notNull(), // 'online', 'offline', 'unknown'
+  lastChecked: timestamp("last_checked"),
 });
 
 export const insertChannelSchema = createInsertSchema(channels).pick({
@@ -67,6 +69,8 @@ export const insertChannelSchema = createInsertSchema(channels).pick({
   countryId: true,
   epgId: true,
   streamSources: true,
+  status: true,
+  lastChecked: true,
 });
 
 // Current program on each channel
