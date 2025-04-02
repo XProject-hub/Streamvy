@@ -18,51 +18,76 @@ const initialState: ThemeProviderState = {
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
-export function ThemeProvider({
-  children,
-}: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
+// Function to apply theme changes to DOM
+const applyTheme = (theme: Theme) => {
+  const root = window.document.documentElement;
+  root.classList.remove("light", "dark");
+  root.classList.add(theme);
+  root.setAttribute("data-theme", theme);
+  
+  // Apply custom properties that ensure shadcn components display correctly
+  if (theme === "dark") {
+    document.documentElement.style.setProperty("--background", "#1f2937");
+    document.documentElement.style.setProperty("--foreground", "#f9fafb");
+    document.documentElement.style.setProperty("--card", "#374151");
+    document.documentElement.style.setProperty("--card-foreground", "#f9fafb");
+    document.documentElement.style.setProperty("--muted", "#6b7280");
+    document.documentElement.style.setProperty("--muted-foreground", "#d1d5db");
+  } else {
+    document.documentElement.style.setProperty("--background", "#ffffff");
+    document.documentElement.style.setProperty("--foreground", "#000000");
+    document.documentElement.style.setProperty("--card", "#ffffff");
+    document.documentElement.style.setProperty("--card-foreground", "#000000");
+    document.documentElement.style.setProperty("--muted", "#f3f4f6");
+    document.documentElement.style.setProperty("--muted-foreground", "#6b7280");
+  }
+  
+  console.log("Theme applied:", theme);
+};
+
+// Component definition
+export function ThemeProvider({ children }: ThemeProviderProps) {
+  const [theme, setThemeState] = useState<Theme>(
     () => (localStorage.getItem("theme") as Theme) || "light"
   );
 
-  useEffect(() => {
-    const root = window.document.documentElement;
+  // Function to change theme
+  const setTheme = (newTheme: Theme) => {
+    localStorage.setItem("theme", newTheme);
+    setThemeState(newTheme);
+    applyTheme(newTheme);
+  };
 
-    root.classList.remove("light", "dark");
-    root.classList.add(theme);
-    
-    // Apply data-theme attribute to ensure shadcn components use the right theme
-    root.setAttribute("data-theme", theme);
-    
-    localStorage.setItem("theme", theme);
-    
-    // Log the theme change to help with debugging
-    console.log("Theme changed to:", theme);
-  }, [theme]);
-
-  // Set theme based on system preference if not set in localStorage
+  // Initialize theme on mount
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (!savedTheme) {
+    const savedTheme = localStorage.getItem("theme") as Theme;
+    
+    if (savedTheme) {
+      applyTheme(savedTheme);
+      setThemeState(savedTheme);
+    } else {
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      setTheme(prefersDark ? "dark" : "light");
+      const initialTheme = prefersDark ? "dark" : "light";
+      applyTheme(initialTheme);
+      setThemeState(initialTheme);
+      localStorage.setItem("theme", initialTheme);
     }
   }, []);
 
-  const value = {
+  // Create context value
+  const contextValue = {
     theme,
-    setTheme: (theme: Theme) => {
-      setTheme(theme);
-    },
+    setTheme
   };
 
   return (
-    <ThemeProviderContext.Provider value={value}>
+    <ThemeProviderContext.Provider value={contextValue}>
       {children}
     </ThemeProviderContext.Provider>
   );
 }
 
+// Custom hook to use the theme context
 export const useTheme = () => {
   const context = useContext(ThemeProviderContext);
 

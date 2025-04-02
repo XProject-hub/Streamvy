@@ -42,27 +42,27 @@ export function Navbar() {
           {/* Desktop Navigation */}
           <div className="hidden md:flex space-x-6">
             {navItems.map((item) => (
-              <Link key={item.path} href={item.path}>
-                <a className={`${
-                  location === item.path 
-                    ? "text-primary-600 dark:text-primary-400 font-medium" 
-                    : "text-gray-500 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400"
-                }`}>
+              <div key={item.path} className={`cursor-pointer ${
+                location === item.path 
+                  ? "text-primary-600 dark:text-primary-400 font-medium" 
+                  : "text-gray-500 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400"
+              }`}>
+                <Link href={item.path}>
                   {item.name}
-                </a>
-              </Link>
+                </Link>
+              </div>
             ))}
             
             {user?.isAdmin && (
-              <Link href="/admin">
-                <a className={`${
-                  location.startsWith("/admin") 
-                    ? "text-primary-600 dark:text-primary-400 font-medium" 
-                    : "text-gray-500 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400"
-                }`}>
+              <div className={`cursor-pointer ${
+                location.startsWith("/admin") 
+                  ? "text-primary-600 dark:text-primary-400 font-medium" 
+                  : "text-gray-500 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400"
+              }`}>
+                <Link href="/admin">
                   Admin
-                </a>
-              </Link>
+                </Link>
+              </div>
             )}
           </div>
         </div>
@@ -93,22 +93,26 @@ export function Navbar() {
       {/* Mobile Navigation */}
       <div className="md:hidden flex justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
         {navItems.map((item, index) => (
-          <Link key={index} href={item.path}>
-            <a className={`text-center flex-1 py-1 ${
-              location === item.path 
-                ? "text-primary-600 dark:text-primary-400 border-b-2 border-primary-500" 
-                : "text-gray-500 dark:text-gray-300"
-            }`}>
-              <span className="text-xs">{item.name}</span>
-            </a>
-          </Link>
+          <div key={index} className="flex-1">
+            <Link href={item.path}>
+              <div className={`text-center py-1 ${
+                location === item.path 
+                  ? "text-primary-600 dark:text-primary-400 border-b-2 border-primary-500" 
+                  : "text-gray-500 dark:text-gray-300"
+              }`}>
+                <span className="text-xs">{item.name}</span>
+              </div>
+            </Link>
+          </div>
         ))}
         {/* Mobile Search */}
-        <Link href="/search">
-          <a className="text-center flex-1 py-1 text-gray-500 dark:text-gray-300">
-            <span className="text-xs">Search</span>
-          </a>
-        </Link>
+        <div className="flex-1">
+          <Link href="/search">
+            <div className="text-center py-1 text-gray-500 dark:text-gray-300">
+              <span className="text-xs">Search</span>
+            </div>
+          </Link>
+        </div>
       </div>
     </nav>
   );

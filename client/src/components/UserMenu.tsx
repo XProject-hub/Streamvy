@@ -88,11 +88,17 @@ export function UserMenu() {
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <Link href="/auth">
-          <Button variant="default" className="bg-primary-600 hover:bg-primary-700 text-white dark:text-white font-medium">
-            Sign In
-          </Button>
-        </Link>
+        <div className="block">
+          <Link href="/auth">
+            <Button 
+              variant="default" 
+              className="bg-primary-600 hover:bg-primary-700 text-white dark:text-white font-medium border-0 shadow-md"
+              style={{ fontSize: '14px', padding: '6px 16px', fontWeight: 600, border: 'none' }}
+            >
+              Sign In
+            </Button>
+          </Link>
+        </div>
       )}
     </>
   );
