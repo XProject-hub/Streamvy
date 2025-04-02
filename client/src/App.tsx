@@ -13,6 +13,9 @@ import AdminChannels from "@/pages/admin/channels";
 import AdminMovies from "@/pages/admin/movies";
 import AdminSeries from "@/pages/admin/series";
 import AdminCategories from "@/pages/admin/categories";
+import AdminEpisodes from "@/pages/admin/episodes";
+import AdminUsers from "@/pages/admin/users";
+import AdminEPG from "@/pages/admin/epg";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
 import { Navbar } from "@/components/Navbar";
@@ -34,6 +37,9 @@ function Router() {
           <ProtectedRoute path="/admin/movies" component={AdminMovies} adminOnly />
           <ProtectedRoute path="/admin/series" component={AdminSeries} adminOnly />
           <ProtectedRoute path="/admin/categories" component={AdminCategories} adminOnly />
+          <ProtectedRoute path="/admin/episodes" component={AdminEpisodes} adminOnly />
+          <ProtectedRoute path="/admin/users" component={AdminUsers} adminOnly />
+          <ProtectedRoute path="/admin/epg" component={AdminEPG} adminOnly />
           <Route component={NotFound} />
         </Switch>
       </main>

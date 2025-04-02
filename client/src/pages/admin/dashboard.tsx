@@ -13,7 +13,8 @@ import {
 } from "@shared/schema";
 import {
   Users, Tv, Film, Video, BarChart2, 
-  Globe, Settings, List, Flag, Activity
+  Globe, Settings, List, Flag, Activity,
+  Play, Calendar
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -75,8 +76,9 @@ export default function AdminDashboard() {
     { name: "Channels", icon: <Tv className="mr-2 h-5 w-5" />, path: "/admin/channels" },
     { name: "Movies", icon: <Film className="mr-2 h-5 w-5" />, path: "/admin/movies" },
     { name: "Series", icon: <Video className="mr-2 h-5 w-5" />, path: "/admin/series" },
+    { name: "Episodes", icon: <Play className="mr-2 h-5 w-5" />, path: "/admin/episodes" },
     { name: "Categories", icon: <List className="mr-2 h-5 w-5" />, path: "/admin/categories" },
-    { name: "Countries", icon: <Flag className="mr-2 h-5 w-5" />, path: "/admin/countries" },
+    { name: "EPG", icon: <Calendar className="mr-2 h-5 w-5" />, path: "/admin/epg" },
     { name: "Users", icon: <Users className="mr-2 h-5 w-5" />, path: "/admin/users" },
     { name: "Settings", icon: <Settings className="mr-2 h-5 w-5" />, path: "/admin/settings" }
   ];
