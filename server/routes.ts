@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { z } from "zod";
 import { setupAuth } from "./auth";
 import { storage, MemStorage } from "./storage";
+import axios from "axios";
 import {
   insertCategorySchema,
   insertCountrySchema,
@@ -27,6 +28,78 @@ const epgSourceSchema = z.object({
   url: z.string().url("Valid URL is required"),
   description: z.string().optional(),
 });
+
+// Function to discover EPG sources based on country code
+async function discoverEPGSources(countryCode: string): Promise<Array<{name: string, url: string, description: string}>> {
+  // Common EPG source patterns by country
+  const commonPatterns = {
+    // European sources
+    'uk': [
+      { name: 'UK - XMLTV.co.uk', url: 'https://xmltv.co.uk/feed/tv.xml', description: 'Free UK TV listings' },
+      { name: 'UK - EPG Heaven', url: 'http://epg.streamstv.me/epg/guide-uk.xml.gz', description: 'UK TV guide' }
+    ],
+    'de': [
+      { name: 'Germany - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-germany.xml.gz', description: 'German TV programs' }
+    ],
+    'fr': [
+      { name: 'France - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-france.xml.gz', description: 'French TV listings' }
+    ],
+    'it': [
+      { name: 'Italy - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-italy.xml.gz', description: 'Italian TV guide' }
+    ],
+    'es': [
+      { name: 'Spain - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-spain.xml.gz', description: 'Spanish TV listings' }
+    ],
+    
+    // North America
+    'us': [
+      { name: 'USA - XMLTV.net', url: 'http://xmltv.net/xml_files/TV_Listings.xml', description: 'US TV listings' },
+      { name: 'USA - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-usa.xml.gz', description: 'American TV guide' }
+    ],
+    'ca': [
+      { name: 'Canada - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-canada.xml.gz', description: 'Canadian TV listings' }
+    ],
+    
+    // Asia-Pacific
+    'au': [
+      { name: 'Australia - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-australia.xml.gz', description: 'Australian TV guide' }
+    ],
+    'jp': [
+      { name: 'Japan - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-japan.xml.gz', description: 'Japanese TV listings' }
+    ],
+    
+    // Middle East
+    'ae': [
+      { name: 'UAE - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-uae.xml.gz', description: 'UAE TV listings' }
+    ],
+    
+    // Custom for Turkey
+    'tr': [
+      { name: 'Turkey - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-turkey.xml.gz', description: 'Turkish TV guide' },
+      { name: 'Turkey - TurkEPG', url: 'https://iptv-org.github.io/epg/guides/tr/tvplus.com.tr.epg.xml', description: 'Turkish TV listings' }
+    ],
+    
+    // General sources for all countries
+    'all': [
+      { name: 'International - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/index.xml', description: 'Guide to all available EPG sources' },
+      { name: 'Global - EPG Grabber', url: 'https://github.com/iptv-org/epg', description: 'Repository of Electronic Program Guide from different IPTV providers' }
+    ]
+  };
+  
+  // Return country-specific sources if available, otherwise return general sources
+  if (countryCode in commonPatterns) {
+    return commonPatterns[countryCode as keyof typeof commonPatterns];
+  } else {
+    return [
+      ...commonPatterns['all'],
+      { 
+        name: `${countryCode.toUpperCase()} - Auto-Generated`, 
+        url: `https://epg.streamstv.me/epg/guide-${countryCode}.xml.gz`, 
+        description: `Auto-generated URL for ${countryCode.toUpperCase()} EPG sources` 
+      }
+    ];
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Testing route to delete all users
@@ -625,6 +698,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching EPG sources:", error);
       res.status(500).json({ message: "Failed to get EPG sources" });
+    }
+  });
+  
+  // EPG Auto-Discover endpoint
+  app.get("/api/admin/epg/discover/:countryCode", ensureAdmin, async (req, res) => {
+    try {
+      const { countryCode } = req.params;
+      if (!countryCode || countryCode.length !== 2) {
+        return res.status(400).json({ message: "Valid country code required (2 letters)" });
+      }
+      
+      const discoveredSources = await discoverEPGSources(countryCode.toLowerCase());
+      res.json(discoveredSources); // Return array directly for easier frontend handling
+    } catch (error) {
+      console.error("Failed to discover EPG sources:", error);
+      res.status(500).json({ message: "Failed to discover EPG sources" });
     }
   });
   

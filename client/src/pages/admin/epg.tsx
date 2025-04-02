@@ -83,8 +83,12 @@ export default function AdminEPG() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [isDiscoverDialogOpen, setIsDiscoverDialogOpen] = useState(false);
+  const [discoveredSources, setDiscoveredSources] = useState<{name: string, url: string, description: string}[]>([]);
+  const [selectedCountryCode, setSelectedCountryCode] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDiscovering, setIsDiscovering] = useState(false);
   const { toast } = useToast();
   
   // Fetch EPG sources
@@ -271,6 +275,33 @@ export default function AdminEPG() {
     }
   });
   
+  // Discover EPG sources mutation
+  const discoverEPGMutation = useMutation({
+    mutationFn: async (countryCode: string) => {
+      setIsDiscovering(true);
+      try {
+        const response = await apiRequest("GET", `/api/admin/epg/discover/${countryCode}`);
+        return await response.json();
+      } finally {
+        setIsDiscovering(false);
+      }
+    },
+    onSuccess: (data) => {
+      setDiscoveredSources(data);
+      toast({
+        title: "EPG sources discovered",
+        description: `Found ${data.length} EPG sources for the selected country`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to discover EPG sources",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+  
   // Handle EPG form submission
   const onEPGSubmit = (data: EPGFormValues) => {
     if (selectedEPG) {
@@ -383,6 +414,13 @@ export default function AdminEPG() {
                 </CardDescription>
               </div>
               <div className="flex space-x-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsDiscoverDialogOpen(true)}
+                >
+                  <Search className="mr-2 h-4 w-4" />
+                  Auto-Discover
+                </Button>
                 <Button variant="outline" onClick={handleUpload}>
                   <Upload className="mr-2 h-4 w-4" />
                   Upload XML
@@ -760,6 +798,122 @@ export default function AdminEPG() {
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Auto-Discover Dialog */}
+      <Dialog open={isDiscoverDialogOpen} onOpenChange={setIsDiscoverDialogOpen}>
+        <DialogContent className="max-w-xl bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white">
+              Auto-Discover EPG Sources
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 dark:text-gray-300">
+              Automatically find EPG sources for channels based on country code
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="flex gap-2 items-end">
+              <div className="w-full max-w-xs space-y-2">
+                <label className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                  Country Code
+                </label>
+                <Input
+                  placeholder="Enter country code (e.g., us, uk, de)"
+                  value={selectedCountryCode}
+                  onChange={(e) => setSelectedCountryCode(e.target.value.toLowerCase())}
+                  className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                  maxLength={2}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Two-letter ISO country code (e.g., us, uk, de)
+                </p>
+              </div>
+              
+              <Button 
+                onClick={() => {
+                  if (selectedCountryCode.length !== 2) {
+                    toast({
+                      title: "Invalid country code",
+                      description: "Please enter a valid two-letter country code",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  discoverEPGMutation.mutate(selectedCountryCode);
+                }}
+                disabled={isDiscovering || selectedCountryCode.length !== 2}
+              >
+                {isDiscovering ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-white" />
+                    <span>Discovering...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Search className="h-4 w-4" />
+                    <span>Discover</span>
+                  </div>
+                )}
+              </Button>
+            </div>
+            
+            {discoveredSources.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-md font-medium text-gray-800 dark:text-gray-200">
+                  Discovered EPG Sources ({discoveredSources.length})
+                </h3>
+                <div className="rounded-md border overflow-auto max-h-60">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>URL</TableHead>
+                        <TableHead className="w-24 text-right">Add</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {discoveredSources.map((source, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{source.name}</TableCell>
+                          <TableCell className="max-w-xs truncate">{source.url}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                createEPGMutation.mutate({
+                                  name: source.name,
+                                  url: source.url,
+                                  description: source.description
+                                });
+                              }}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter className="gap-2 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsDiscoverDialogOpen(false);
+                setDiscoveredSources([]);
+                setSelectedCountryCode("");
+              }}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
