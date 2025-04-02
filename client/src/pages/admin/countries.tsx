@@ -450,15 +450,17 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
           <h2 className="text-xl font-bold mb-4">Admin Panel</h2>
           <nav className="space-y-1">
             {adminNavItems.map((item) => (
-              <Link key={item.path} href={item.path}>
-                <a className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
+              <Link 
+                key={item.path} 
+                href={item.path}
+                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
                   item.path === "/admin/countries" 
                     ? "bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300" 
                     : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                }`}>
-                  {item.icon}
-                  {item.name}
-                </a>
+                }`}
+              >
+                {item.icon}
+                {item.name}
               </Link>
             ))}
           </nav>
