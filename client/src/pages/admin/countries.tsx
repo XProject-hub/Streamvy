@@ -1,677 +1,474 @@
-import { useEffect, useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient, apiRequest } from '@/lib/queryClient';
-import { Country } from '@shared/schema';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter,
-  DialogDescription
-} from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+  CardDescription
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { 
-  Plus, MoreVertical, Edit, Trash2, Search, Flag, 
-  LayoutDashboard, Users, Film, Tv2, Layers, List, Globe, Radio, 
-  ChevronDown, ChevronRight, Menu, X
-} from 'lucide-react';
-import { Link, useLocation } from 'wouter';
-import { useAuth } from '@/hooks/use-auth';
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from "@/components/ui/form";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Country } from "@shared/schema";
+import { 
+  Plus, Edit, Trash2, Search, AlertTriangle, 
+  Globe, Film, Tv, Video, Play, List, BarChart2, 
+  Users, Calendar
+} from "lucide-react";
+import { Link } from "wouter";
+
+// Country form schema
+const countryFormSchema = z.object({
+  name: z.string().min(1, "Country name is required"),
+  code: z.string().min(2, "Valid country code is required").max(2, "Country code must be 2 letters"),
+  flag: z.string().url("Must be a valid URL").optional().or(z.literal(''))
+});
+
+type CountryFormValues = z.infer<typeof countryFormSchema>;
 
 export default function CountriesAdminPage() {
-  const { toast } = useToast();
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [currentCountry, setCurrentCountry] = useState<Country | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const { toast } = useToast();
   
-  // Form state
-  const [countryName, setCountryName] = useState('');
-  const [countryCode, setCountryCode] = useState('');
+  // Fetch countries
+  const { data: countries, isLoading: countriesLoading } = useQuery<Country[]>({
+    queryKey: ["/api/countries"],
+  });
   
-  // Get all countries
-  const {
-    data: countries = [],
-    isLoading,
-    isError,
-    error
-  } = useQuery<Country[]>({
-    queryKey: ['/api/countries'],
+  // Country form setup
+  const form = useForm<CountryFormValues>({
+    resolver: zodResolver(countryFormSchema),
+    defaultValues: {
+      name: "",
+      code: "",
+      flag: ""
+    }
   });
   
   // Create country mutation
   const createCountryMutation = useMutation({
-    mutationFn: async (country: { name: string, code: string }) => {
-      const res = await apiRequest('POST', '/api/admin/countries', country);
-      return await res.json();
+    mutationFn: async (data: CountryFormValues) => {
+      const response = await apiRequest("POST", "/api/admin/countries", data);
+      return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/countries'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/countries"] });
       toast({
-        title: 'Success',
-        description: 'Country created successfully',
+        title: "Country created",
+        description: "The country has been created successfully",
       });
-      resetForm();
-      setIsAddDialogOpen(false);
+      setIsFormDialogOpen(false);
+      form.reset();
     },
     onError: (err: Error) => {
       toast({
-        title: 'Error',
-        description: `Failed to create country: ${err.message}`,
-        variant: 'destructive',
+        title: "Failed to create country",
+        description: err.message,
+        variant: "destructive",
       });
-    },
+    }
   });
   
   // Update country mutation
   const updateCountryMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number, data: { name: string, code: string } }) => {
-      const res = await apiRequest('PUT', `/api/admin/countries/${id}`, data);
-      return await res.json();
+    mutationFn: async ({ id, data }: { id: number; data: CountryFormValues }) => {
+      const response = await apiRequest("PUT", `/api/admin/countries/${id}`, data);
+      return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/countries'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/countries"] });
       toast({
-        title: 'Success',
-        description: 'Country updated successfully',
+        title: "Country updated",
+        description: "The country has been updated successfully",
       });
-      resetForm();
-      setIsEditDialogOpen(false);
+      setIsFormDialogOpen(false);
+      setSelectedCountry(null);
     },
     onError: (err: Error) => {
       toast({
-        title: 'Error',
-        description: `Failed to update country: ${err.message}`,
-        variant: 'destructive',
+        title: "Failed to update country",
+        description: err.message,
+        variant: "destructive",
       });
-    },
+    }
   });
   
   // Delete country mutation
   const deleteCountryMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest('DELETE', `/api/admin/countries/${id}`);
+      await apiRequest("DELETE", `/api/admin/countries/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/countries'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/countries"] });
       toast({
-        title: 'Success',
-        description: 'Country deleted successfully',
+        title: "Country deleted",
+        description: "The country has been deleted successfully",
       });
       setIsDeleteDialogOpen(false);
-      setCurrentCountry(null);
+      setSelectedCountry(null);
     },
     onError: (err: Error) => {
       toast({
-        title: 'Error',
-        description: `Failed to delete country: ${err.message}`,
-        variant: 'destructive',
+        title: "Failed to delete country",
+        description: err.message,
+        variant: "destructive",
       });
-    },
+    }
   });
   
-  // Reset form fields
-  const resetForm = () => {
-    setCountryName('');
-    setCountryCode('');
-    setCurrentCountry(null);
+  // Handle form submission
+  const onSubmit = (data: CountryFormValues) => {
+    if (selectedCountry) {
+      updateCountryMutation.mutate({ id: selectedCountry.id, data });
+    } else {
+      createCountryMutation.mutate(data);
+    }
   };
   
-  // Handle edit country
+  // Open edit dialog with country data
   const handleEditCountry = (country: Country) => {
-    setCurrentCountry(country);
-    setCountryName(country.name);
-    setCountryCode(country.code);
-    setIsEditDialogOpen(true);
+    setSelectedCountry(country);
+    
+    form.reset({
+      name: country.name,
+      code: country.code,
+      flag: country.flag || ""
+    });
+    
+    setIsFormDialogOpen(true);
   };
   
-  // Handle delete country
+  // Open create dialog
+  const handleAddCountry = () => {
+    setSelectedCountry(null);
+    form.reset({
+      name: "",
+      code: "",
+      flag: ""
+    });
+    setIsFormDialogOpen(true);
+  };
+  
+  // Handle delete confirmation
   const handleDeleteCountry = (country: Country) => {
-    setCurrentCountry(country);
+    setSelectedCountry(country);
     setIsDeleteDialogOpen(true);
   };
   
-  // Handle create country form submission
-  const handleCreateCountry = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!countryName || !countryCode) {
-      toast({
-        title: 'Validation Error',
-        description: 'Country name and code are required',
-        variant: 'destructive',
-      });
-      return;
+  // Delete country
+  const handleDeleteConfirm = () => {
+    if (selectedCountry) {
+      deleteCountryMutation.mutate(selectedCountry.id);
     }
-    
-    createCountryMutation.mutate({
-      name: countryName,
-      code: countryCode.toLowerCase(),
-    });
   };
   
-  // Handle update country form submission
-  const handleUpdateCountry = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentCountry) return;
-    
-    if (!countryName || !countryCode) {
-      toast({
-        title: 'Validation Error',
-        description: 'Country name and code are required',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    updateCountryMutation.mutate({
-      id: currentCountry.id,
-      data: {
-        name: countryName,
-        code: countryCode.toLowerCase(),
-      },
-    });
-  };
-  
-  // Handle delete country confirmation
-  const handleConfirmDelete = () => {
-    if (!currentCountry) return;
-    deleteCountryMutation.mutate(currentCountry.id);
-  };
-  
-  // Filter countries by search term
-  const filteredCountries = countries.filter(country =>
-    country.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    country.code.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filter countries by search
+  const filteredCountries = countries?.filter(country =>
+    country.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    country.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
-// Admin Layout Component
-function AdminLayout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
-  const { user } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
-  // Admin navigation items
-  const navItems = [
-    { path: '/admin', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-    { path: '/admin/channels', label: 'Channels', icon: <Tv2 size={18} /> },
-    { path: '/admin/movies', label: 'Movies', icon: <Film size={18} /> },
-    { path: '/admin/series', label: 'Series', icon: <Layers size={18} /> },
-    { path: '/admin/categories', label: 'Categories', icon: <List size={18} /> },
-    { path: '/admin/countries', label: 'Countries', icon: <Globe size={18} /> },
-    { path: '/admin/epg', label: 'EPG', icon: <Radio size={18} /> },
-    { path: '/admin/users', label: 'Users', icon: <Users size={18} /> },
+  // Navigation items for admin
+  const adminNavItems = [
+    { name: "Dashboard", icon: <BarChart2 className="mr-2 h-5 w-5" />, path: "/admin" },
+    { name: "Channels", icon: <Tv className="mr-2 h-5 w-5" />, path: "/admin/channels" },
+    { name: "Movies", icon: <Film className="mr-2 h-5 w-5" />, path: "/admin/movies" },
+    { name: "Series", icon: <Video className="mr-2 h-5 w-5" />, path: "/admin/series" },
+    { name: "Episodes", icon: <Play className="mr-2 h-5 w-5" />, path: "/admin/episodes" },
+    { name: "Categories", icon: <List className="mr-2 h-5 w-5" />, path: "/admin/categories" },
+    { name: "Countries", icon: <Globe className="mr-2 h-5 w-5" />, path: "/admin/countries" },
+    { name: "EPG", icon: <Calendar className="mr-2 h-5 w-5" />, path: "/admin/epg" },
+    { name: "Users", icon: <Users className="mr-2 h-5 w-5" />, path: "/admin/users" }
   ];
   
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
-      {/* Mobile menu */}
-      <div className="lg:hidden fixed inset-0 z-40 flex">
-        <div 
-          className={`fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity ease-in-out duration-300 ${
-            mobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`} 
-          onClick={() => setMobileMenuOpen(false)}
-        ></div>
-        
-        <div 
-          className={`relative flex-1 flex flex-col max-w-xs w-full bg-white dark:bg-gray-800 transition ease-in-out duration-300 transform ${
-            mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          <div className="absolute top-0 right-0 -mr-12 pt-2">
-            <button
-              className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <X className="h-6 w-6 text-white" />
-            </button>
-          </div>
-          
-          <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
-            <div className="flex-shrink-0 flex items-center px-4">
-              <h1 className="text-xl font-bold text-primary">StreamHive Admin</h1>
-            </div>
-            <nav className="mt-5 px-2 space-y-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  href={item.path}
-                  className={`group flex items-center px-2 py-2 text-base font-medium rounded-md ${
-                    location === item.path
-                      ? 'bg-gray-200 dark:bg-gray-700 text-primary'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {item.icon}
-                  <span className="ml-3">{item.label}</span>
-                </Link>
-              ))}
-            </nav>
-          </div>
-          
-          <div className="flex-shrink-0 flex border-t border-gray-200 dark:border-gray-700 p-4">
-            <div className="flex items-center">
-              <div>
-                <div className="flex text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {user?.username}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {user?.isAdmin ? 'Admin' : 'User'}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Desktop sidebar */}
-      <div 
-        className={`hidden lg:flex lg:flex-shrink-0 transition-all duration-300 ease-in-out ${
-          sidebarOpen ? 'lg:w-64' : 'lg:w-20'
-        }`}
-      >
-        <div className="flex flex-col w-full border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div className="flex flex-col h-0 flex-1">
-            <div className="flex items-center h-16 flex-shrink-0 px-4 justify-between">
-              {sidebarOpen && (
-                <h1 className="text-xl font-bold text-primary">StreamHive</h1>
-              )}
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-1 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                {sidebarOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-              </button>
-            </div>
-            <div className="flex-1 flex flex-col overflow-y-auto">
-              <nav className="flex-1 px-2 py-4 space-y-1">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.path}
-                    href={item.path}
-                    className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                      location === item.path
-                        ? 'bg-gray-200 dark:bg-gray-700 text-primary'
-                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    {item.icon}
-                    {sidebarOpen && <span className="ml-3">{item.label}</span>}
-                  </Link>
-                ))}
-              </nav>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Main content */}
-      <div className="flex flex-col w-0 flex-1 overflow-hidden">
-        <div className="relative z-10 flex-shrink-0 flex h-16 bg-white dark:bg-gray-800 shadow">
-          <button
-            className="px-4 border-r border-gray-200 dark:border-gray-700 text-gray-500 lg:hidden"
-            onClick={() => setMobileMenuOpen(true)}
-          >
-            <span className="sr-only">Open sidebar</span>
-            <Menu className="h-6 w-6" />
-          </button>
-          <div className="flex-1 px-4 flex justify-between">
-            <div className="flex-1 flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Admin Panel</h1>
-            </div>
-          </div>
-        </div>
-        
-        {/* Page content */}
-        <main className="flex-1 relative overflow-y-auto focus:outline-none">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
-}
-  
-  if (isError) {
-    return (
-      <AdminLayout>
-        <div className="flex flex-col items-center justify-center h-full">
-          <h1 className="text-2xl font-bold text-red-500">Error loading countries</h1>
-          <p className="text-gray-500">{(error as Error)?.message || 'Unknown error'}</p>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  return (
     <AdminLayout>
-      <div className="container mx-auto p-4">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Country Management</h1>
-          <Button onClick={() => setIsAddDialogOpen(true)}>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-2xl">Countries Management</CardTitle>
+            <CardDescription>
+              Manage countries for organizing channels and content
+            </CardDescription>
+          </div>
+          <Button onClick={handleAddCountry}>
             <Plus className="mr-2 h-4 w-4" />
             Add Country
           </Button>
-        </div>
-        
-        {/* Search */}
-        <div className="relative mb-6">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search countries..."
-            className="pl-8"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        
-        {/* Countries Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Countries</CardTitle>
-            <CardDescription>
-              Manage your streaming platform's country options
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              </div>
-            ) : (
+        </CardHeader>
+        <CardContent>
+          {/* Search and filter */}
+          <div className="mb-4">
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search countries..."
+                className="pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          {/* Countries table */}
+          {countriesLoading ? (
+            <div className="text-center py-8">Loading countries...</div>
+          ) : filteredCountries?.length === 0 ? (
+            <div className="text-center py-8">
+              <AlertTriangle className="h-12 w-12 mx-auto text-yellow-500 mb-2" />
+              <p>No countries found. Add your first country to get started.</p>
+            </div>
+          ) : (
+            <div className="rounded-md border overflow-auto">
               <Table>
-                <TableCaption>A list of all countries in your streaming platform.</TableCaption>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Flag</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Code</TableHead>
-                    <TableHead>Flag</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCountries.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center">
-                        {searchTerm ? 'No countries match your search' : 'No countries added yet'}
+                  {filteredCountries?.map((country) => (
+                    <TableRow key={country.id}>
+                      <TableCell>
+                        {country.flag ? (
+                          <img 
+                            src={country.flag} 
+                            alt={`${country.name} flag`} 
+                            className="h-8 w-auto" 
+                          />
+                        ) : (
+                          <div className="h-8 w-12 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center text-gray-500 dark:text-gray-400">
+                            <Globe className="h-4 w-4" />
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium">{country.name}</TableCell>
+                      <TableCell>{country.code.toUpperCase()}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditCountry(country)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteCountry(country)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    filteredCountries.map((country) => (
-                      <TableRow key={country.id}>
-                        <TableCell className="font-medium">{country.name}</TableCell>
-                        <TableCell>{country.code.toUpperCase()}</TableCell>
-                        <TableCell>
-                          <span className="text-2xl">
-                            {country.code.toUpperCase().replace(/./g, char => 
-                              String.fromCodePoint(char.charCodeAt(0) + 127397)
-                            )}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleEditCountry(country)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-red-600"
-                                onClick={() => handleDeleteCountry(country)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                  ))}
                 </TableBody>
               </Table>
-            )}
-          </CardContent>
-        </Card>
-        
-        {/* Add Country Dialog */}
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Country</DialogTitle>
-              <DialogDescription>
-                Add a new country to your streaming platform
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateCountry}>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label htmlFor="name" className="text-right font-medium">
-                    Name
-                  </label>
-                  <Input
-                    id="name"
-                    value={countryName}
-                    onChange={(e) => setCountryName(e.target.value)}
-                    className="col-span-3"
-                    placeholder="United States"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label htmlFor="code" className="text-right font-medium">
-                    Code (2 letters)
-                  </label>
-                  <Input
-                    id="code"
-                    value={countryCode}
-                    onChange={(e) => setCountryCode(e.target.value)}
-                    className="col-span-3"
-                    placeholder="us"
-                    maxLength={2}
-                  />
-                </div>
-                {countryCode && countryCode.length === 2 && (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label className="text-right font-medium">
-                      Flag Preview
-                    </label>
-                    <div className="col-span-3 text-2xl">
-                      {countryCode.toUpperCase().replace(/./g, char => 
-                        String.fromCodePoint(char.charCodeAt(0) + 127397)
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => {
-                    resetForm();
-                    setIsAddDialogOpen(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={createCountryMutation.isPending}
-                >
-                  {createCountryMutation.isPending ? (
-                    <>
-                      <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent rounded-full"></div>
-                      Creating...
-                    </>
-                  ) : 'Create Country'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-        
-        {/* Edit Country Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Country</DialogTitle>
-              <DialogDescription>
-                Update country information
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleUpdateCountry}>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label htmlFor="edit-name" className="text-right font-medium">
-                    Name
-                  </label>
-                  <Input
-                    id="edit-name"
-                    value={countryName}
-                    onChange={(e) => setCountryName(e.target.value)}
-                    className="col-span-3"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <label htmlFor="edit-code" className="text-right font-medium">
-                    Code (2 letters)
-                  </label>
-                  <Input
-                    id="edit-code"
-                    value={countryCode}
-                    onChange={(e) => setCountryCode(e.target.value)}
-                    className="col-span-3"
-                    maxLength={2}
-                  />
-                </div>
-                {countryCode && countryCode.length === 2 && (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label className="text-right font-medium">
-                      Flag Preview
-                    </label>
-                    <div className="col-span-3 text-2xl">
-                      {countryCode.toUpperCase().replace(/./g, char => 
-                        String.fromCodePoint(char.charCodeAt(0) + 127397)
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => {
-                    resetForm();
-                    setIsEditDialogOpen(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={updateCountryMutation.isPending}
-                >
-                  {updateCountryMutation.isPending ? (
-                    <>
-                      <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent rounded-full"></div>
-                      Updating...
-                    </>
-                  ) : 'Update Country'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-        
-        {/* Delete Country Dialog */}
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delete Country</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to delete this country? This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              {currentCountry && (
-                <div className="flex items-center p-4 bg-muted rounded-md">
-                  <Flag className="mr-2 h-4 w-4" />
-                  <span className="font-medium">{currentCountry.name}</span>
-                  <span className="ml-2 text-muted-foreground">({currentCountry.code.toUpperCase()})</span>
-                  <span className="ml-2 text-2xl">
-                    {currentCountry.code.toUpperCase().replace(/./g, char => 
-                      String.fromCodePoint(char.charCodeAt(0) + 127397)
-                    )}
-                  </span>
-                </div>
-              )}
             </div>
-            <DialogFooter>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => {
-                  setCurrentCountry(null);
-                  setIsDeleteDialogOpen(false);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="button" 
-                variant="destructive"
-                onClick={handleConfirmDelete}
-                disabled={deleteCountryMutation.isPending}
-              >
-                {deleteCountryMutation.isPending ? (
-                  <>
-                    <div className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent rounded-full"></div>
-                    Deleting...
-                  </>
-                ) : 'Delete Country'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      {/* Country Form Dialog */}
+      <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedCountry ? 'Edit Country' : 'Add New Country'}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedCountry 
+                ? 'Update the country details below' 
+                : 'Fill out the form below to add a new country'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Country Name</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Enter country name" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Country Code</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="2-letter code (e.g., US)" 
+                        {...field} 
+                        maxLength={2}
+                        onChange={(e) => field.onChange(e.target.value.toLowerCase())}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="flag"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Flag URL (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Enter flag image URL" 
+                        {...field} 
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button type="submit">
+                  {selectedCountry ? 'Update Country' : 'Add Country'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedCountry?.name}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Warning</AlertTitle>
+            <AlertDescription>
+              Deleting this country will remove it from all associated channels.
+            </AlertDescription>
+          </Alert>
+          
+          <DialogFooter className="gap-2 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteConfirm}
+            >
+              Delete Country
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
+  );
+}
+
+function AdminLayout({ children }: { children: React.ReactNode }) {
+  const adminNavItems = [
+    { name: "Dashboard", icon: <BarChart2 className="mr-2 h-5 w-5" />, path: "/admin" },
+    { name: "Channels", icon: <Tv className="mr-2 h-5 w-5" />, path: "/admin/channels" },
+    { name: "Movies", icon: <Film className="mr-2 h-5 w-5" />, path: "/admin/movies" },
+    { name: "Series", icon: <Video className="mr-2 h-5 w-5" />, path: "/admin/series" },
+    { name: "Episodes", icon: <Play className="mr-2 h-5 w-5" />, path: "/admin/episodes" },
+    { name: "Categories", icon: <List className="mr-2 h-5 w-5" />, path: "/admin/categories" },
+    { name: "Countries", icon: <Globe className="mr-2 h-5 w-5" />, path: "/admin/countries" },
+    { name: "EPG", icon: <Calendar className="mr-2 h-5 w-5" />, path: "/admin/epg" },
+    { name: "Users", icon: <Users className="mr-2 h-5 w-5" />, path: "/admin/users" }
+  ];
+
+  return (
+    <div className="p-6">
+      <div className="flex flex-col md:flex-row gap-6">
+        {/* Sidebar Navigation */}
+        <div className="w-full md:w-1/5 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+          <h2 className="text-xl font-bold mb-4">Admin Panel</h2>
+          <nav className="space-y-1">
+            {adminNavItems.map((item) => (
+              <Link key={item.path} href={item.path}>
+                <a className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
+                  item.path === "/admin/countries" 
+                    ? "bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300" 
+                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                }`}>
+                  {item.icon}
+                  {item.name}
+                </a>
+              </Link>
+            ))}
+          </nav>
+        </div>
+        
+        {/* Main Content */}
+        <div className="w-full md:w-4/5 space-y-6">
+          {children}
+        </div>
+      </div>
+    </div>
   );
 }
