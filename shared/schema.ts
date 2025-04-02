@@ -261,3 +261,31 @@ export const insertUserPreferencesSchema = createInsertSchema(userPreferences).p
 
 export type UserPreferences = typeof userPreferences.$inferSelect;
 export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;
+
+// Site Settings - global configuration options for the streaming platform
+export const siteSettings = pgTable("site_settings", {
+  id: serial("id").primaryKey(),
+  siteName: text("site_name").default("StreamHive").notNull(),
+  logoUrl: text("logo_url"),
+  primaryColor: text("primary_color").default("#3b82f6").notNull(),
+  enableSubscriptions: boolean("enable_subscriptions").default(true).notNull(),
+  enablePPV: boolean("enable_ppv").default(false).notNull(),
+  enableRegistration: boolean("enable_registration").default(true).notNull(),
+  defaultUserQuota: integer("default_user_quota").default(5).notNull(), 
+  defaultUserConcurrentStreams: integer("default_user_concurrent_streams").default(2).notNull(),
+  lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+});
+
+export const insertSiteSettingsSchema = createInsertSchema(siteSettings).pick({
+  siteName: true,
+  logoUrl: true,
+  primaryColor: true,
+  enableSubscriptions: true,
+  enablePPV: true,
+  enableRegistration: true,
+  defaultUserQuota: true,
+  defaultUserConcurrentStreams: true,
+});
+
+export type SiteSettings = typeof siteSettings.$inferSelect;
+export type InsertSiteSettings = z.infer<typeof insertSiteSettingsSchema>;

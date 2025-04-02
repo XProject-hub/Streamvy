@@ -10,6 +10,7 @@ import {
   epgSources, EPGSource, InsertEPGSource,
   watchHistory, WatchHistory, InsertWatchHistory,
   userPreferences, UserPreferences, InsertUserPreferences,
+  siteSettings, SiteSettings, InsertSiteSettings,
   StreamSource
 } from "@shared/schema";
 import { and, eq, ne, lte, gte, count, desc, asc, sql } from "drizzle-orm";
@@ -108,6 +109,10 @@ export interface IStorage {
   createUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences>;
   updateUserPreferences(userId: number, preferences: Partial<InsertUserPreferences>): Promise<UserPreferences | undefined>;
   
+  // Site Settings operations
+  getSiteSettings(): Promise<SiteSettings | undefined>;
+  updateSiteSettings(settings: Partial<InsertSiteSettings>): Promise<SiteSettings>;
+  
   // Session store
   sessionStore: SessionStore;
 }
@@ -126,6 +131,7 @@ export class MemStorage implements IStorage {
   private epgSources: Map<number, EPGSource>;
   private watchHistoryRecords: Map<number, WatchHistory>;
   private userPreferencesRecords: Map<number, UserPreferences>;
+  private siteSettingsRecord: SiteSettings | undefined;
   
   // Counters for IDs
   private userCounter: number;
@@ -788,7 +794,54 @@ export class MemStorage implements IStorage {
   }
   
   // Initialize with sample data for testing
+  // Site Settings operations
+  async getSiteSettings(): Promise<SiteSettings | undefined> {
+    return this.siteSettingsRecord;
+  }
+  
+  async updateSiteSettings(settings: Partial<InsertSiteSettings>): Promise<SiteSettings> {
+    const now = new Date();
+    if (!this.siteSettingsRecord) {
+      // Create initial settings if they don't exist
+      this.siteSettingsRecord = {
+        id: 1,
+        siteName: settings.siteName || "StreamHive",
+        logoUrl: settings.logoUrl || null,
+        primaryColor: settings.primaryColor || "#3b82f6",
+        enableSubscriptions: settings.enableSubscriptions ?? true,
+        enablePPV: settings.enablePPV ?? false,
+        enableRegistration: settings.enableRegistration ?? true,
+        defaultUserQuota: settings.defaultUserQuota ?? 5,
+        defaultUserConcurrentStreams: settings.defaultUserConcurrentStreams ?? 2,
+        lastUpdated: now
+      };
+    } else {
+      // Update existing settings
+      this.siteSettingsRecord = {
+        ...this.siteSettingsRecord,
+        ...settings,
+        lastUpdated: now
+      };
+    }
+    
+    return this.siteSettingsRecord;
+  }
+  
   private initializeSampleData() {
+    // Initialize default site settings
+    this.siteSettingsRecord = {
+      id: 1,
+      siteName: "StreamHive",
+      logoUrl: null,
+      primaryColor: "#3b82f6",
+      enableSubscriptions: true,
+      enablePPV: false,
+      enableRegistration: true,
+      defaultUserQuota: 5,
+      defaultUserConcurrentStreams: 2,
+      lastUpdated: new Date()
+    };
+    
     // Create initial admin user with properly formatted password for our scrypt implementation
     // Format is hash.salt where password is "password"
     const adminUser: User = {
@@ -1315,6 +1368,179 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userPreferences.userId, userId))
       .returning();
     return record;
+  }
+  
+  // Site Settings operations
+  async getSiteSettings(): Promise<SiteSettings | undefined> {
+    try {
+      // Using direct SQL query for debugging
+      const result = await db.execute(sql`
+        SELECT * FROM site_settings LIMIT 1
+      `);
+      console.log("Site settings result:", result);
+      
+      if (result.rows && result.rows.length > 0) {
+        // Use the actual column names from the database - they're already in camelCase
+        const row = result.rows[0] as Record<string, any>;
+        console.log("Site settings row:", row);
+        
+        // Debug what properties are available
+        console.log("Properties in row:", Object.keys(row));
+        
+        const settings: SiteSettings = {
+          id: Number(row.id),
+          siteName: String(row.siteName || 'StreamHive'),
+          logoUrl: row.logoUrl ? String(row.logoUrl) : null,
+          primaryColor: String(row.primaryColor || '#3b82f6'),
+          enableSubscriptions: Boolean(row.enableSubscriptions),
+          enablePPV: Boolean(row.enablePPV),
+          enableRegistration: Boolean(row.enableRegistration),
+          defaultUserQuota: Number(row.defaultUserQuota || 5),
+          defaultUserConcurrentStreams: Number(row.defaultUserConcurrentStreams || 2),
+          lastUpdated: row.lastUpdated ? new Date(row.lastUpdated) : new Date()
+        };
+        
+        console.log("Mapped settings:", settings);
+        return settings;
+      }
+      return undefined;
+    } catch (error) {
+      console.error("Error getting site settings:", error);
+      return undefined;
+    }
+  }
+  
+  async updateSiteSettings(settingsData: Partial<InsertSiteSettings>): Promise<SiteSettings> {
+    try {
+      const currentSettings = await this.getSiteSettings();
+      const now = new Date();
+      
+      if (!currentSettings) {
+        // Create new settings if they don't exist
+        const result = await db.execute(sql`
+          INSERT INTO site_settings (
+            "siteName", 
+            "logoUrl", 
+            "primaryColor", 
+            "enableSubscriptions", 
+            "enablePPV", 
+            "enableRegistration", 
+            "defaultUserQuota", 
+            "defaultUserConcurrentStreams", 
+            "lastUpdated"
+          ) VALUES (
+            ${settingsData.siteName || "StreamHive"},
+            ${settingsData.logoUrl || null},
+            ${settingsData.primaryColor || "#3b82f6"},
+            ${settingsData.enableSubscriptions ?? true},
+            ${settingsData.enablePPV ?? false},
+            ${settingsData.enableRegistration ?? true},
+            ${settingsData.defaultUserQuota ?? 5},
+            ${settingsData.defaultUserConcurrentStreams ?? 2},
+            ${now}
+          ) RETURNING *
+        `);
+        
+        const row = result.rows[0] as Record<string, any>;
+        return {
+          id: Number(row.id),
+          siteName: String(row.siteName || 'StreamHive'),
+          logoUrl: row.logoUrl ? String(row.logoUrl) : null,
+          primaryColor: String(row.primaryColor || '#3b82f6'),
+          enableSubscriptions: Boolean(row.enableSubscriptions),
+          enablePPV: Boolean(row.enablePPV),
+          enableRegistration: Boolean(row.enableRegistration),
+          defaultUserQuota: Number(row.defaultUserQuota || 5),
+          defaultUserConcurrentStreams: Number(row.defaultUserConcurrentStreams || 2),
+          lastUpdated: row.lastUpdated ? new Date(row.lastUpdated) : new Date()
+        };
+      } else {
+        // Build SQL parts for updating
+        let updateSQL = sql`
+          UPDATE site_settings
+          SET 
+        `;
+        
+        // Start with an empty array and gradually build up the SQL parts
+        const parts: any[] = [];
+        
+        if (settingsData.siteName !== undefined) {
+          parts.push(sql`"siteName" = ${settingsData.siteName}`);
+        }
+        
+        if (settingsData.logoUrl !== undefined) {
+          parts.push(sql`"logoUrl" = ${settingsData.logoUrl}`);
+        }
+        
+        if (settingsData.primaryColor !== undefined) {
+          parts.push(sql`"primaryColor" = ${settingsData.primaryColor}`);
+        }
+        
+        if (settingsData.enableSubscriptions !== undefined) {
+          parts.push(sql`"enableSubscriptions" = ${settingsData.enableSubscriptions}`);
+        }
+        
+        if (settingsData.enablePPV !== undefined) {
+          parts.push(sql`"enablePPV" = ${settingsData.enablePPV}`);
+        }
+        
+        if (settingsData.enableRegistration !== undefined) {
+          parts.push(sql`"enableRegistration" = ${settingsData.enableRegistration}`);
+        }
+        
+        if (settingsData.defaultUserQuota !== undefined) {
+          parts.push(sql`"defaultUserQuota" = ${settingsData.defaultUserQuota}`);
+        }
+        
+        if (settingsData.defaultUserConcurrentStreams !== undefined) {
+          parts.push(sql`"defaultUserConcurrentStreams" = ${settingsData.defaultUserConcurrentStreams}`);
+        }
+        
+        // Always update lastUpdated
+        parts.push(sql`"lastUpdated" = ${now}`);
+        
+        // If no parts to update, return existing settings
+        if (parts.length === 0) {
+          return currentSettings;
+        }
+        
+        // Join parts with commas
+        let firstPart = parts[0];
+        let restParts = parts.slice(1);
+        
+        let setClause = firstPart;
+        for (const part of restParts) {
+          setClause = sql`${setClause}, ${part}`;
+        }
+        
+        // Complete the SQL query
+        const fullQuery = sql`
+          ${updateSQL} ${setClause}
+          WHERE id = ${currentSettings.id}
+          RETURNING *
+        `;
+        
+        // Execute the query
+        const result = await db.execute(fullQuery);
+        
+        const row = result.rows[0] as Record<string, any>;
+        return {
+          id: Number(row.id),
+          siteName: String(row.siteName || 'StreamHive'),
+          logoUrl: row.logoUrl ? String(row.logoUrl) : null,
+          primaryColor: String(row.primaryColor || '#3b82f6'),
+          enableSubscriptions: Boolean(row.enableSubscriptions),
+          enablePPV: Boolean(row.enablePPV),
+          enableRegistration: Boolean(row.enableRegistration),
+          defaultUserQuota: Number(row.defaultUserQuota || 5),
+          defaultUserConcurrentStreams: Number(row.defaultUserConcurrentStreams || 2),
+          lastUpdated: row.lastUpdated ? new Date(row.lastUpdated) : new Date()
+        };
+      }
+    } catch (error) {
+      console.error("Error updating site settings:", error);
+      throw new Error("Failed to update site settings");
+    }
   }
 
   // User operations

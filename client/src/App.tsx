@@ -17,6 +17,7 @@ import AdminEpisodes from "@/pages/admin/episodes";
 import AdminUsers from "@/pages/admin/users";
 import AdminEPG from "@/pages/admin/epg";
 import AdminCountries from "@/pages/admin/countries";
+import AdminSettings from "@/pages/admin/settings";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
 import { Navbar } from "@/components/Navbar";
@@ -42,6 +43,7 @@ function Router() {
           <ProtectedRoute path="/admin/users" component={AdminUsers} adminOnly />
           <ProtectedRoute path="/admin/epg" component={AdminEPG} adminOnly />
           <ProtectedRoute path="/admin/countries" component={AdminCountries} adminOnly />
+          <ProtectedRoute path="/admin/settings" component={AdminSettings} adminOnly />
           <Route component={NotFound} />
         </Switch>
       </main>

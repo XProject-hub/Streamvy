@@ -9,7 +9,8 @@ import {
   List, 
   Globe, 
   Calendar, 
-  Users 
+  Users,
+  Settings
 } from "lucide-react";
 
 interface AdminLayoutProps {
@@ -27,7 +28,8 @@ export function AdminLayout({ children, activePath = "/admin" }: AdminLayoutProp
     { name: "Categories", icon: <List className="mr-2 h-5 w-5" />, path: "/admin/categories" },
     { name: "Countries", icon: <Globe className="mr-2 h-5 w-5" />, path: "/admin/countries" },
     { name: "EPG", icon: <Calendar className="mr-2 h-5 w-5" />, path: "/admin/epg" },
-    { name: "Users", icon: <Users className="mr-2 h-5 w-5" />, path: "/admin/users" }
+    { name: "Users", icon: <Users className="mr-2 h-5 w-5" />, path: "/admin/users" },
+    { name: "Settings", icon: <Settings className="mr-2 h-5 w-5" />, path: "/admin/settings" }
   ];
 
   return (

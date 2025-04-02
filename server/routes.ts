@@ -14,6 +14,7 @@ import {
   insertEpisodeSchema,
   insertWatchHistorySchema,
   insertUserPreferencesSchema,
+  insertSiteSettingsSchema,
 } from "@shared/schema";
 
 // Admin middleware to check if user is an admin
@@ -1023,6 +1024,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating user preferences:", error);
       res.status(500).json({ message: "Failed to update user preferences" });
+    }
+  });
+  
+  // Site Settings API
+  
+  // Get site settings
+  app.get("/api/site-settings", async (_req, res) => {
+    try {
+      const settings = await storage.getSiteSettings();
+      
+      if (!settings) {
+        // Return default settings if they don't exist in storage
+        const defaultSettings = {
+          siteName: "StreamHive",
+          logoUrl: null,
+          primaryColor: "#3b82f6",
+          enableSubscriptions: true,
+          enablePPV: false,
+          enableRegistration: true,
+          defaultUserQuota: 5,
+          defaultUserConcurrentStreams: 2,
+          lastUpdated: new Date()
+        };
+        return res.json(defaultSettings);
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error("Error getting site settings:", error);
+      res.status(500).json({ message: "Failed to get site settings" });
+    }
+  });
+  
+  // Update site settings (admin only)
+  app.put("/api/admin/site-settings", ensureAdmin, async (req, res) => {
+    try {
+      // Validate settings data
+      const validation = insertSiteSettingsSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid settings data", 
+          errors: validation.error.format() 
+        });
+      }
+      
+      // Update settings
+      const updatedSettings = await storage.updateSiteSettings(req.body);
+      res.json(updatedSettings);
+    } catch (error) {
+      console.error("Error updating site settings:", error);
+      res.status(500).json({ message: "Failed to update site settings" });
     }
   });
 
