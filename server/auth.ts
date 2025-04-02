@@ -10,7 +10,14 @@ import { z } from "zod";
 
 declare global {
   namespace Express {
-    interface User extends User {}
+    // Extend the Express.User interface with our User type
+    interface User {
+      id: number;
+      username: string;
+      password: string;
+      isAdmin: boolean;
+      createdAt: Date;
+    }
   }
 }
 

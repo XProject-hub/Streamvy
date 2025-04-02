@@ -155,7 +155,9 @@ export default function AdminChannels() {
   // Delete channel mutation
   const deleteChannelMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/admin/channels/${id}`);
+      const response = await apiRequest("DELETE", `/api/admin/channels/${id}`);
+      // For 204 No Content responses, we don't need to process the response body
+      return response.status === 204 ? true : response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/channels"] });

@@ -19,6 +19,12 @@ export async function apiRequest(
     credentials: "include",
   });
 
+  // Special handling for DELETE operations that return 204 No Content
+  // 204 responses are considered successful but have no body
+  if (res.status === 204) {
+    return res;
+  }
+
   await throwIfResNotOk(res);
   return res;
 }

@@ -859,11 +859,43 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCategory(id: number): Promise<boolean> {
-    const result = await db
-      .delete(categories)
-      .where(eq(categories.id, id))
-      .returning({ id: categories.id });
-    return result.length > 0;
+    try {
+      // First check if category exists
+      const category = await this.getCategory(id);
+      if (!category) {
+        return false;
+      }
+      
+      // Update all references to this category to null instead of deleting them
+      // Update channels
+      await db
+        .update(channels)
+        .set({ categoryId: null })
+        .where(eq(channels.categoryId, id));
+        
+      // Update movies
+      await db
+        .update(movies)
+        .set({ categoryId: null })
+        .where(eq(movies.categoryId, id));
+        
+      // Update series
+      await db
+        .update(series)
+        .set({ categoryId: null })
+        .where(eq(series.categoryId, id));
+        
+      // Then delete the category
+      const result = await db
+        .delete(categories)
+        .where(eq(categories.id, id))
+        .returning({ id: categories.id });
+        
+      return result.length > 0;
+    } catch (error) {
+      console.error("Error deleting category:", error);
+      return false;
+    }
   }
 
   // Country operations
@@ -900,11 +932,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCountry(id: number): Promise<boolean> {
-    const result = await db
-      .delete(countries)
-      .where(eq(countries.id, id))
-      .returning({ id: countries.id });
-    return result.length > 0;
+    try {
+      // First check if country exists
+      const country = await this.getCountry(id);
+      if (!country) {
+        return false;
+      }
+      
+      // Update all channels with this country reference to null
+      await db
+        .update(channels)
+        .set({ countryId: null })
+        .where(eq(channels.countryId, id));
+        
+      // Then delete the country
+      const result = await db
+        .delete(countries)
+        .where(eq(countries.id, id))
+        .returning({ id: countries.id });
+        
+      return result.length > 0;
+    } catch (error) {
+      console.error("Error deleting country:", error);
+      return false;
+    }
   }
 
   // Channel operations
@@ -955,11 +1006,47 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteChannel(id: number): Promise<boolean> {
-    const result = await db
-      .delete(channels)
-      .where(eq(channels.id, id))
-      .returning({ id: channels.id });
-    return result.length > 0;
+    try {
+      // First check if channel exists
+      const channel = await this.getChannel(id);
+      if (!channel) {
+        console.log("Channel not found:", id);
+        return false;
+      }
+      
+      console.log("Deleting channel with ID:", id);
+      
+      try {
+        // First delete all programs associated with this channel
+        console.log("Deleting associated programs...");
+        await db
+          .delete(programs)
+          .where(eq(programs.channelId, id));
+          
+        console.log("Associated programs deleted");
+      } catch (programError) {
+        console.error("Error deleting channel programs:", programError);
+        // Continue with channel deletion even if program deletion fails
+      }
+        
+      try {
+        // Then delete the channel
+        console.log("Deleting channel...");
+        const result = await db
+          .delete(channels)
+          .where(eq(channels.id, id))
+          .returning({ id: channels.id });
+          
+        console.log("Channel delete result:", result);
+        return result.length > 0;
+      } catch (channelError) {
+        console.error("Error in actual channel deletion:", channelError);
+        throw channelError; // Re-throw to be caught by the outer catch
+      }
+    } catch (error) {
+      console.error("Error deleting channel:", error);
+      return false;
+    }
   }
 
   // Program operations
@@ -1009,11 +1096,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteProgram(id: number): Promise<boolean> {
-    const result = await db
-      .delete(programs)
-      .where(eq(programs.id, id))
-      .returning({ id: programs.id });
-    return result.length > 0;
+    try {
+      // First check if program exists
+      const program = await db
+        .select()
+        .from(programs)
+        .where(eq(programs.id, id))
+        .then(rows => rows[0]);
+        
+      if (!program) {
+        return false;
+      }
+      
+      // Delete the program
+      const result = await db
+        .delete(programs)
+        .where(eq(programs.id, id))
+        .returning({ id: programs.id });
+        
+      return result.length > 0;
+    } catch (error) {
+      console.error("Error deleting program:", error);
+      return false;
+    }
   }
 
   // Movie operations
@@ -1057,11 +1162,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteMovie(id: number): Promise<boolean> {
-    const result = await db
-      .delete(movies)
-      .where(eq(movies.id, id))
-      .returning({ id: movies.id });
-    return result.length > 0;
+    try {
+      // First check if movie exists
+      const movie = await this.getMovie(id);
+      if (!movie) {
+        return false;
+      }
+      
+      // Delete the movie
+      const result = await db
+        .delete(movies)
+        .where(eq(movies.id, id))
+        .returning({ id: movies.id });
+        
+      return result.length > 0;
+    } catch (error) {
+      console.error("Error deleting movie:", error);
+      return false;
+    }
   }
 
   // Series operations
@@ -1105,11 +1223,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteSeries(id: number): Promise<boolean> {
-    const result = await db
-      .delete(series)
-      .where(eq(series.id, id))
-      .returning({ id: series.id });
-    return result.length > 0;
+    try {
+      // First check if series exists
+      const seriesItem = await this.getSeries(id);
+      if (!seriesItem) {
+        return false;
+      }
+      
+      // First delete all episodes associated with this series
+      await db
+        .delete(episodes)
+        .where(eq(episodes.seriesId, id));
+        
+      // Then delete the series
+      const result = await db
+        .delete(series)
+        .where(eq(series.id, id))
+        .returning({ id: series.id });
+        
+      return result.length > 0;
+    } catch (error) {
+      console.error("Error deleting series:", error);
+      return false;
+    }
   }
 
   // Episode operations
@@ -1149,11 +1285,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteEpisode(id: number): Promise<boolean> {
-    const result = await db
-      .delete(episodes)
-      .where(eq(episodes.id, id))
-      .returning({ id: episodes.id });
-    return result.length > 0;
+    try {
+      // First check if episode exists
+      const episode = await this.getEpisode(id);
+      if (!episode) {
+        return false;
+      }
+      
+      // Delete the episode
+      const result = await db
+        .delete(episodes)
+        .where(eq(episodes.id, id))
+        .returning({ id: episodes.id });
+        
+      return result.length > 0;
+    } catch (error) {
+      console.error("Error deleting episode:", error);
+      return false;
+    }
   }
 }
 
