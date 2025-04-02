@@ -12,6 +12,8 @@ import {
   insertMovieSchema,
   insertSeriesSchema,
   insertEpisodeSchema,
+  insertWatchHistorySchema,
+  insertUserPreferencesSchema,
 } from "@shared/schema";
 
 // Admin middleware to check if user is an admin
@@ -843,6 +845,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to process EPG file: " + (error as Error).message });
+    }
+  });
+
+  // User Analytics API
+  
+  // Get watch history for the current user
+  app.get("/api/user/watch-history", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      
+      const userId = req.user!.id;
+      const watchHistory = await storage.getUserWatchHistory(userId);
+      res.json(watchHistory);
+    } catch (error) {
+      console.error("Error getting watch history:", error);
+      res.status(500).json({ message: "Failed to get watch history" });
+    }
+  });
+  
+  // Get watch history stats for the current user
+  app.get("/api/user/watch-stats", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      
+      const userId = req.user!.id;
+      const stats = await storage.getUserWatchStats(userId);
+      res.json(stats);
+    } catch (error) {
+      console.error("Error getting watch stats:", error);
+      res.status(500).json({ message: "Failed to get watch statistics" });
+    }
+  });
+  
+  // Record watch event
+  app.post("/api/user/watch", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      
+      const userId = req.user!.id;
+      const watchData = insertWatchHistorySchema.parse({
+        ...req.body,
+        userId,
+      });
+      
+      const watchRecord = await storage.recordWatchEvent(watchData);
+      res.status(201).json(watchRecord);
+    } catch (error) {
+      console.error("Error recording watch event:", error);
+      res.status(500).json({ message: "Failed to record watch event" });
+    }
+  });
+  
+  // Update watch progress
+  app.put("/api/user/watch/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid watch ID" });
+      }
+      
+      const userId = req.user!.id;
+      const watchData = await storage.getWatchHistory(id);
+      
+      if (!watchData) {
+        return res.status(404).json({ message: "Watch record not found" });
+      }
+      
+      if (watchData.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to update this record" });
+      }
+      
+      const updatedWatch = await storage.updateWatchEvent(id, req.body);
+      res.json(updatedWatch);
+    } catch (error) {
+      console.error("Error updating watch event:", error);
+      res.status(500).json({ message: "Failed to update watch event" });
+    }
+  });
+  
+  // User Preferences API
+  
+  // Get user preferences
+  app.get("/api/user/preferences", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      
+      const userId = req.user!.id;
+      const preferences = await storage.getUserPreferences(userId);
+      
+      if (!preferences) {
+        // Create default preferences if they don't exist
+        const defaultPreferences = await storage.createUserPreferences({
+          userId,
+          favorites: { movies: [], series: [], channels: [] },
+          preferredCategories: [],
+          contentFilters: {},
+          uiSettings: {}
+        });
+        return res.json(defaultPreferences);
+      }
+      
+      res.json(preferences);
+    } catch (error) {
+      console.error("Error getting user preferences:", error);
+      res.status(500).json({ message: "Failed to get user preferences" });
+    }
+  });
+  
+  // Update user preferences
+  app.put("/api/user/preferences", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      
+      const userId = req.user!.id;
+      let preferences = await storage.getUserPreferences(userId);
+      
+      if (!preferences) {
+        // Create preferences if they don't exist
+        preferences = await storage.createUserPreferences({
+          userId,
+          ...req.body
+        });
+      } else {
+        // Update existing preferences
+        preferences = await storage.updateUserPreferences(userId, req.body);
+      }
+      
+      res.json(preferences);
+    } catch (error) {
+      console.error("Error updating user preferences:", error);
+      res.status(500).json({ message: "Failed to update user preferences" });
     }
   });
 

@@ -8,9 +8,11 @@ import {
   series, Series, InsertSeries,
   episodes, Episode, InsertEpisode,
   epgSources, EPGSource, InsertEPGSource,
+  watchHistory, WatchHistory, InsertWatchHistory,
+  userPreferences, UserPreferences, InsertUserPreferences,
   StreamSource
 } from "@shared/schema";
-import { and, eq, ne, lte, gte, count, desc, asc } from "drizzle-orm";
+import { and, eq, ne, lte, gte, count, desc, asc, sql } from "drizzle-orm";
 import { db, pool } from "./db";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -92,6 +94,18 @@ export interface IStorage {
   deleteEPGSource(id: number): Promise<boolean>;
   refreshEPGSource(id: number): Promise<EPGSource | undefined>;
   
+  // Watch History operations
+  getUserWatchHistory(userId: number): Promise<WatchHistory[]>;
+  getWatchHistory(id: number): Promise<WatchHistory | undefined>;
+  recordWatchEvent(event: InsertWatchHistory): Promise<WatchHistory>;
+  updateWatchEvent(id: number, event: Partial<InsertWatchHistory>): Promise<WatchHistory | undefined>;
+  getUserWatchStats(userId: number): Promise<any>; // Stats object with watch metrics
+  
+  // User Preferences operations
+  getUserPreferences(userId: number): Promise<UserPreferences | undefined>;
+  createUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences>;
+  updateUserPreferences(userId: number, preferences: Partial<InsertUserPreferences>): Promise<UserPreferences | undefined>;
+  
   // Session store
   sessionStore: SessionStore;
 }
@@ -108,6 +122,8 @@ export class MemStorage implements IStorage {
   private series: Map<number, Series>;
   private episodes: Map<number, Episode>;
   private epgSources: Map<number, EPGSource>;
+  private watchHistoryRecords: Map<number, WatchHistory>;
+  private userPreferencesRecords: Map<number, UserPreferences>;
   
   // Counters for IDs
   private userCounter: number;
@@ -119,6 +135,8 @@ export class MemStorage implements IStorage {
   private seriesCounter: number;
   private episodeCounter: number;
   private epgSourceCounter: number;
+  private watchHistoryCounter: number;
+  private userPreferencesCounter: number;
   
   // Session store
   public sessionStore: SessionStore;
@@ -133,6 +151,8 @@ export class MemStorage implements IStorage {
     this.series = new Map();
     this.episodes = new Map();
     this.epgSources = new Map();
+    this.watchHistoryRecords = new Map();
+    this.userPreferencesRecords = new Map();
     
     this.userCounter = 1;
     this.categoryCounter = 1;
@@ -143,6 +163,8 @@ export class MemStorage implements IStorage {
     this.seriesCounter = 1;
     this.episodeCounter = 1;
     this.epgSourceCounter = 1;
+    this.watchHistoryCounter = 1;
+    this.userPreferencesCounter = 1;
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // Clear expired sessions once a day
@@ -241,7 +263,11 @@ export class MemStorage implements IStorage {
   
   async createCountry(country: InsertCountry): Promise<Country> {
     const id = this.countryCounter++;
-    const newCountry: Country = { ...country, id };
+    const newCountry: Country = { 
+      ...country, 
+      id,
+      flag: country.flag || null 
+    };
     this.countries.set(id, newCountry);
     return newCountry;
   }
@@ -518,6 +544,231 @@ export class MemStorage implements IStorage {
     };
     this.epgSources.set(id, updatedSource);
     return updatedSource;
+  }
+  
+  // Watch History operations
+  async getUserWatchHistory(userId: number): Promise<WatchHistory[]> {
+    return Array.from(this.watchHistoryRecords.values())
+      .filter(record => record.userId === userId)
+      .sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+  }
+  
+  async getWatchHistory(id: number): Promise<WatchHistory | undefined> {
+    return this.watchHistoryRecords.get(id);
+  }
+  
+  async recordWatchEvent(event: InsertWatchHistory): Promise<WatchHistory> {
+    const id = this.watchHistoryCounter++;
+    const now = new Date();
+    const record: WatchHistory = {
+      ...event,
+      id,
+      startTime: event.startTime || now,
+      endTime: event.endTime || null,
+      duration: event.duration || null,
+      progress: event.progress || 0,
+      completed: event.completed || false
+    };
+    this.watchHistoryRecords.set(id, record);
+    return record;
+  }
+  
+  async updateWatchEvent(id: number, event: Partial<InsertWatchHistory>): Promise<WatchHistory | undefined> {
+    const record = this.watchHistoryRecords.get(id);
+    if (!record) return undefined;
+    
+    const updatedRecord: WatchHistory = { ...record, ...event };
+    this.watchHistoryRecords.set(id, updatedRecord);
+    return updatedRecord;
+  }
+  
+  async getUserWatchStats(userId: number): Promise<any> {
+    const userHistory = await this.getUserWatchHistory(userId);
+    
+    // Calculate total watch time
+    const totalSeconds = userHistory.reduce((sum, record) => sum + (record.duration || 0), 0);
+    const totalContent = userHistory.length;
+    const totalCompleted = userHistory.filter(record => record.completed).length;
+    
+    // Group by content type
+    const byContentType = userHistory.reduce((acc, record) => {
+      const contentType = record.contentType;
+      if (!acc[contentType]) {
+        acc[contentType] = {
+          contentType,
+          seconds: 0,
+          count: 0,
+          completed: 0
+        };
+      }
+      
+      acc[contentType].seconds += (record.duration || 0);
+      acc[contentType].count++;
+      if (record.completed) {
+        acc[contentType].completed++;
+      }
+      
+      return acc;
+    }, {} as Record<string, { contentType: string, seconds: number, count: number, completed: number }>);
+    
+    // Calculate most watched categories
+    const categoryWatchTime: Record<number, { id: number, name: string, count: number, totalSeconds: number }> = {};
+    
+    // Process movie watches
+    for (const record of userHistory.filter(r => r.contentType === 'movie')) {
+      const movie = this.movies.get(record.contentId);
+      if (movie && movie.categoryId) {
+        const category = this.categories.get(movie.categoryId);
+        if (category) {
+          if (!categoryWatchTime[category.id]) {
+            categoryWatchTime[category.id] = {
+              id: category.id,
+              name: category.name,
+              count: 0,
+              totalSeconds: 0
+            };
+          }
+          
+          categoryWatchTime[category.id].count++;
+          categoryWatchTime[category.id].totalSeconds += (record.duration || 0);
+        }
+      }
+    }
+    
+    // Process episode watches
+    for (const record of userHistory.filter(r => r.contentType === 'episode')) {
+      const episode = this.episodes.get(record.contentId);
+      if (episode) {
+        const seriesItem = this.series.get(episode.seriesId);
+        if (seriesItem && seriesItem.categoryId) {
+          const category = this.categories.get(seriesItem.categoryId);
+          if (category) {
+            if (!categoryWatchTime[category.id]) {
+              categoryWatchTime[category.id] = {
+                id: category.id,
+                name: category.name,
+                count: 0,
+                totalSeconds: 0
+              };
+            }
+            
+            categoryWatchTime[category.id].count++;
+            categoryWatchTime[category.id].totalSeconds += (record.duration || 0);
+          }
+        }
+      }
+    }
+    
+    // Process channel watches
+    for (const record of userHistory.filter(r => r.contentType === 'channel')) {
+      const channel = this.channels.get(record.contentId);
+      if (channel && channel.categoryId) {
+        const category = this.categories.get(channel.categoryId);
+        if (category) {
+          if (!categoryWatchTime[category.id]) {
+            categoryWatchTime[category.id] = {
+              id: category.id,
+              name: category.name,
+              count: 0,
+              totalSeconds: 0
+            };
+          }
+          
+          categoryWatchTime[category.id].count++;
+          categoryWatchTime[category.id].totalSeconds += (record.duration || 0);
+        }
+      }
+    }
+    
+    // Sort categories by total time watched
+    const topCategories = Object.values(categoryWatchTime)
+      .sort((a, b) => b.totalSeconds - a.totalSeconds)
+      .slice(0, 5);
+    
+    // Get recent watch history with content details
+    const recentActivity = await Promise.all(
+      userHistory.slice(0, 10).map(async record => {
+        let title = "Unknown";
+        let thumbnail = null;
+        
+        if (record.contentType === 'movie') {
+          const movie = this.movies.get(record.contentId);
+          if (movie) {
+            title = movie.title;
+            thumbnail = movie.poster;
+          }
+        } else if (record.contentType === 'episode') {
+          const episode = this.episodes.get(record.contentId);
+          if (episode) {
+            const seriesItem = this.series.get(episode.seriesId);
+            if (seriesItem) {
+              title = `${seriesItem.title} - S${episode.season}E${episode.episode}`;
+              thumbnail = seriesItem.poster;
+            }
+          }
+        } else if (record.contentType === 'channel') {
+          const channel = this.channels.get(record.contentId);
+          if (channel) {
+            title = channel.name;
+            thumbnail = channel.logo;
+          }
+        }
+        
+        return {
+          ...record,
+          title,
+          thumbnail
+        };
+      })
+    );
+    
+    return {
+      summary: { totalSeconds, totalContent, totalCompleted },
+      byContentType: Object.values(byContentType),
+      topCategories,
+      recentActivity
+    };
+  }
+  
+  // User Preferences operations
+  async getUserPreferences(userId: number): Promise<UserPreferences | undefined> {
+    return Array.from(this.userPreferencesRecords.values())
+      .find(prefs => prefs.userId === userId);
+  }
+  
+  async createUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences> {
+    const id = this.userPreferencesCounter++;
+    const now = new Date();
+    const record: UserPreferences = {
+      ...preferences,
+      id,
+      lastUpdated: now,
+      favorites: preferences.favorites || {"movies":[],"series":[],"channels":[]},
+      preferredCategories: preferences.preferredCategories || [],
+      contentFilters: preferences.contentFilters || {},
+      uiSettings: preferences.uiSettings || {}
+    };
+    this.userPreferencesRecords.set(id, record);
+    return record;
+  }
+  
+  async updateUserPreferences(userId: number, prefs: Partial<InsertUserPreferences>): Promise<UserPreferences | undefined> {
+    const record = Array.from(this.userPreferencesRecords.values())
+      .find(p => p.userId === userId);
+      
+    if (!record) return undefined;
+    
+    // Don't update the userId
+    const { userId: _, ...prefsWithoutUserId } = prefs;
+    
+    const updatedRecord: UserPreferences = { 
+      ...record, 
+      ...prefsWithoutUserId,
+      lastUpdated: new Date()
+    };
+    
+    this.userPreferencesRecords.set(record.id, updatedRecord);
+    return updatedRecord;
   }
   
   // Initialize with sample data for testing
@@ -901,6 +1152,153 @@ export class DatabaseStorage implements IStorage {
       pool,
       createTableIfMissing: true
     });
+  }
+  
+  // Watch History operations
+  async getUserWatchHistory(userId: number): Promise<WatchHistory[]> {
+    return await db
+      .select()
+      .from(watchHistory)
+      .where(eq(watchHistory.userId, userId))
+      .orderBy(desc(watchHistory.startTime));
+  }
+  
+  async getWatchHistory(id: number): Promise<WatchHistory | undefined> {
+    const [record] = await db
+      .select()
+      .from(watchHistory)
+      .where(eq(watchHistory.id, id));
+    return record;
+  }
+  
+  async recordWatchEvent(event: InsertWatchHistory): Promise<WatchHistory> {
+    const [record] = await db
+      .insert(watchHistory)
+      .values(event)
+      .returning();
+    return record;
+  }
+  
+  async updateWatchEvent(id: number, event: Partial<InsertWatchHistory>): Promise<WatchHistory | undefined> {
+    const [record] = await db
+      .update(watchHistory)
+      .set(event)
+      .where(eq(watchHistory.id, id))
+      .returning();
+    return record;
+  }
+  
+  async getUserWatchStats(userId: number): Promise<any> {
+    // Get total watch time across all content types
+    const totalWatchTime = await db
+      .select({ 
+        totalSeconds: sql`SUM(${watchHistory.duration})`,
+        totalContent: sql`COUNT(*)`,
+        totalCompleted: sql`SUM(CASE WHEN ${watchHistory.completed} = true THEN 1 ELSE 0 END)`
+      })
+      .from(watchHistory)
+      .where(eq(watchHistory.userId, userId));
+      
+    // Get watch time by content type
+    const watchTimeByType = await db
+      .select({ 
+        contentType: watchHistory.contentType,
+        seconds: sql`SUM(${watchHistory.duration})`,
+        count: sql`COUNT(*)`,
+        completed: sql`SUM(CASE WHEN ${watchHistory.completed} = true THEN 1 ELSE 0 END)`
+      })
+      .from(watchHistory)
+      .where(eq(watchHistory.userId, userId))
+      .groupBy(watchHistory.contentType);
+      
+    // Get most watched categories
+    const mostWatchedCategories = await db.execute(sql`
+      SELECT c.name, c.id, COUNT(*) as count, SUM(wh.duration) as total_seconds
+      FROM watch_history wh
+      JOIN movies m ON wh.content_type = 'movie' AND wh.content_id = m.id
+      JOIN categories c ON m.category_id = c.id
+      WHERE wh.user_id = ${userId}
+      GROUP BY c.id, c.name
+      UNION ALL
+      SELECT c.name, c.id, COUNT(*) as count, SUM(wh.duration) as total_seconds
+      FROM watch_history wh
+      JOIN episodes e ON wh.content_type = 'episode' AND wh.content_id = e.id
+      JOIN series s ON e.series_id = s.id
+      JOIN categories c ON s.category_id = c.id
+      WHERE wh.user_id = ${userId}
+      GROUP BY c.id, c.name
+      UNION ALL
+      SELECT c.name, c.id, COUNT(*) as count, SUM(wh.duration) as total_seconds
+      FROM watch_history wh
+      JOIN channels ch ON wh.content_type = 'channel' AND wh.content_id = ch.id
+      JOIN categories c ON ch.category_id = c.id
+      WHERE wh.user_id = ${userId}
+      GROUP BY c.id, c.name
+      ORDER BY total_seconds DESC
+      LIMIT 5
+    `);
+    
+    // Get recent watch history with content details
+    const recentActivity = await db.execute(sql`
+      SELECT 
+        wh.id, 
+        wh.content_type, 
+        wh.content_id, 
+        wh.start_time, 
+        wh.end_time, 
+        wh.duration, 
+        wh.progress,
+        wh.completed,
+        COALESCE(m.title, s.title, ch.name, 'Unknown') as title,
+        COALESCE(m.poster, s.poster, ch.logo, NULL) as thumbnail
+      FROM watch_history wh
+      LEFT JOIN movies m ON wh.content_type = 'movie' AND wh.content_id = m.id
+      LEFT JOIN channels ch ON wh.content_type = 'channel' AND wh.content_id = ch.id
+      LEFT JOIN episodes e ON wh.content_type = 'episode' AND wh.content_id = e.id
+      LEFT JOIN series s ON e.series_id = s.id
+      WHERE wh.user_id = ${userId}
+      ORDER BY wh.start_time DESC
+      LIMIT 10
+    `);
+    
+    return {
+      summary: totalWatchTime[0] || { totalSeconds: 0, totalContent: 0, totalCompleted: 0 },
+      byContentType: watchTimeByType,
+      topCategories: mostWatchedCategories,
+      recentActivity: recentActivity
+    };
+  }
+  
+  // User Preferences operations
+  async getUserPreferences(userId: number): Promise<UserPreferences | undefined> {
+    const [preferences] = await db
+      .select()
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, userId));
+    return preferences;
+  }
+  
+  async createUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences> {
+    const [record] = await db
+      .insert(userPreferences)
+      .values(preferences)
+      .returning();
+    return record;
+  }
+  
+  async updateUserPreferences(userId: number, prefs: Partial<InsertUserPreferences>): Promise<UserPreferences | undefined> {
+    // Don't update the userId
+    const { userId: _, ...prefsWithoutUserId } = prefs;
+    
+    const [record] = await db
+      .update(userPreferences)
+      .set({
+        ...prefsWithoutUserId,
+        lastUpdated: new Date()
+      })
+      .where(eq(userPreferences.userId, userId))
+      .returning();
+    return record;
   }
 
   // User operations

@@ -208,3 +208,52 @@ export const insertEPGSourceSchema = createInsertSchema(epgSources).pick({
 
 export type EPGSource = typeof epgSources.$inferSelect;
 export type InsertEPGSource = z.infer<typeof insertEPGSourceSchema>;
+
+// Watch History - to track what users are watching
+export const watchHistory = pgTable("watch_history", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  contentType: text("content_type").notNull(), // 'movie', 'episode', 'channel'
+  contentId: integer("content_id").notNull(),
+  startTime: timestamp("start_time").defaultNow().notNull(),
+  endTime: timestamp("end_time"),
+  duration: integer("duration"), // in seconds
+  progress: integer("progress"), // percentage completed (0-100)
+  completed: boolean("completed").default(false),
+});
+
+export const insertWatchHistorySchema = createInsertSchema(watchHistory).pick({
+  userId: true,
+  contentType: true,
+  contentId: true,
+  startTime: true,
+  endTime: true,
+  duration: true,
+  progress: true,
+  completed: true,
+});
+
+export type WatchHistory = typeof watchHistory.$inferSelect;
+export type InsertWatchHistory = z.infer<typeof insertWatchHistorySchema>;
+
+// User Preferences - to store user preferences, including favorites
+export const userPreferences = pgTable("user_preferences", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull().unique(),
+  favorites: jsonb("favorites").default('{"movies":[],"series":[],"channels":[]}'),
+  preferredCategories: jsonb("preferred_categories").default('[]'),
+  contentFilters: jsonb("content_filters").default('{}'),
+  uiSettings: jsonb("ui_settings").default('{}'),
+  lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+});
+
+export const insertUserPreferencesSchema = createInsertSchema(userPreferences).pick({
+  userId: true,
+  favorites: true,
+  preferredCategories: true,
+  contentFilters: true,
+  uiSettings: true,
+});
+
+export type UserPreferences = typeof userPreferences.$inferSelect;
+export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;
