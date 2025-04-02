@@ -620,10 +620,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // EPG Sources Management
   app.get("/api/admin/epg/sources", ensureAdmin, async (_req, res) => {
     try {
-      // TODO: Implement getEPGSources in storage.ts interface
-      // For now, we'll return a mock response for testing
-      res.json([]);
+      const sources = await storage.getEPGSources();
+      res.json(sources);
     } catch (error) {
+      console.error("Error fetching EPG sources:", error);
       res.status(500).json({ message: "Failed to get EPG sources" });
     }
   });
@@ -638,15 +638,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Name and URL are required" });
       }
       
-      // Simply return the data for now - we'll properly implement EPG storage later
-      res.json({
-        id: 1,
-        name: name,
-        url: url,
-        description: description || null,
-        lastUpdate: new Date(),
-        channelCount: 0
+      // Create the EPG source in storage
+      const newSource = await storage.createEPGSource({
+        name,
+        url,
+        description: description || null
       });
+      
+      res.json(newSource);
     } catch (error) {
       console.error("Error creating EPG source:", error);
       res.status(500).json({ message: "Failed to create EPG source: " + (error as Error).message });
@@ -668,18 +667,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Name and URL are required" });
       }
       
-      // TODO: Implement updateEPGSource in storage.ts
+      // Check if EPG source exists
+      const existingSource = await storage.getEPGSource(id);
+      if (!existingSource) {
+        return res.status(404).json({ message: "EPG source not found" });
+      }
       
-      res.json({
-        id,
-        name: name,
-        url: url,
-        description: description || null,
-        lastUpdate: new Date(),
-        channelCount: 0
+      // Update EPG source
+      const updatedSource = await storage.updateEPGSource(id, {
+        name,
+        url,
+        description: description || null
       });
+      
+      res.json(updatedSource);
     } catch (error) {
-      res.status(500).json({ message: "Failed to update EPG source" });
+      console.error("Error updating EPG source:", error);
+      res.status(500).json({ message: "Failed to update EPG source: " + (error as Error).message });
     }
   });
 
@@ -690,11 +694,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid EPG source ID" });
       }
       
-      // TODO: Implement deleteEPGSource in storage.ts
+      // Check if EPG source exists
+      const existingSource = await storage.getEPGSource(id);
+      if (!existingSource) {
+        return res.status(404).json({ message: "EPG source not found" });
+      }
+      
+      // Delete EPG source
+      const deleted = await storage.deleteEPGSource(id);
+      if (!deleted) {
+        return res.status(500).json({ message: "Failed to delete EPG source" });
+      }
       
       res.status(204).end();
     } catch (error) {
-      res.status(500).json({ message: "Failed to delete EPG source" });
+      console.error("Error deleting EPG source:", error);
+      res.status(500).json({ message: "Failed to delete EPG source: " + (error as Error).message });
     }
   });
 
@@ -705,11 +720,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid EPG source ID" });
       }
       
-      // TODO: Implement refreshEPGSource in storage.ts
+      // Check if EPG source exists
+      const existingSource = await storage.getEPGSource(id);
+      if (!existingSource) {
+        return res.status(404).json({ message: "EPG source not found" });
+      }
       
-      res.json({ message: "EPG data refreshed successfully" });
+      // Refresh EPG source
+      const refreshedSource = await storage.refreshEPGSource(id);
+      if (!refreshedSource) {
+        return res.status(500).json({ message: "Failed to refresh EPG data" });
+      }
+      
+      res.json({
+        message: "EPG data refreshed successfully",
+        source: refreshedSource
+      });
     } catch (error) {
-      res.status(500).json({ message: "Failed to refresh EPG data" });
+      console.error("Error refreshing EPG source:", error);
+      res.status(500).json({ message: "Failed to refresh EPG data: " + (error as Error).message });
     }
   });
 

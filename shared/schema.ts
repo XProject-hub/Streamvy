@@ -187,3 +187,22 @@ export type StreamSource = {
   format: string; // 'hls', 'mp4', etc.
   label?: string;
 };
+
+// EPG Source
+export const epgSources = pgTable("epg_sources", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  description: text("description"),
+  lastUpdate: timestamp("last_update").defaultNow(),
+  channelCount: integer("channel_count").default(0)
+});
+
+export const insertEPGSourceSchema = createInsertSchema(epgSources).pick({
+  name: true,
+  url: true,
+  description: true
+});
+
+export type EPGSource = typeof epgSources.$inferSelect;
+export type InsertEPGSource = z.infer<typeof insertEPGSourceSchema>;

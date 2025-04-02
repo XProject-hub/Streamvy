@@ -7,6 +7,7 @@ import {
   movies, Movie, InsertMovie,
   series, Series, InsertSeries,
   episodes, Episode, InsertEpisode,
+  epgSources, EPGSource, InsertEPGSource,
   StreamSource
 } from "@shared/schema";
 import { and, eq, ne, lte, gte, count, desc, asc } from "drizzle-orm";
@@ -83,6 +84,14 @@ export interface IStorage {
   updateEpisode(id: number, episode: Partial<InsertEpisode>): Promise<Episode | undefined>;
   deleteEpisode(id: number): Promise<boolean>;
   
+  // EPG operations
+  getEPGSources(): Promise<EPGSource[]>;
+  getEPGSource(id: number): Promise<EPGSource | undefined>;
+  createEPGSource(source: InsertEPGSource): Promise<EPGSource>;
+  updateEPGSource(id: number, source: Partial<InsertEPGSource>): Promise<EPGSource | undefined>;
+  deleteEPGSource(id: number): Promise<boolean>;
+  refreshEPGSource(id: number): Promise<EPGSource | undefined>;
+  
   // Session store
   sessionStore: SessionStore;
 }
@@ -98,6 +107,7 @@ export class MemStorage implements IStorage {
   private movies: Map<number, Movie>;
   private series: Map<number, Series>;
   private episodes: Map<number, Episode>;
+  private epgSources: Map<number, EPGSource>;
   
   // Counters for IDs
   private userCounter: number;
@@ -108,6 +118,7 @@ export class MemStorage implements IStorage {
   private movieCounter: number;
   private seriesCounter: number;
   private episodeCounter: number;
+  private epgSourceCounter: number;
   
   // Session store
   public sessionStore: SessionStore;
@@ -121,6 +132,7 @@ export class MemStorage implements IStorage {
     this.movies = new Map();
     this.series = new Map();
     this.episodes = new Map();
+    this.epgSources = new Map();
     
     this.userCounter = 1;
     this.categoryCounter = 1;
@@ -130,6 +142,7 @@ export class MemStorage implements IStorage {
     this.movieCounter = 1;
     this.seriesCounter = 1;
     this.episodeCounter = 1;
+    this.epgSourceCounter = 1;
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // Clear expired sessions once a day
@@ -455,6 +468,56 @@ export class MemStorage implements IStorage {
   
   async deleteEpisode(id: number): Promise<boolean> {
     return this.episodes.delete(id);
+  }
+  
+  // EPG operations
+  async getEPGSources(): Promise<EPGSource[]> {
+    return Array.from(this.epgSources.values());
+  }
+  
+  async getEPGSource(id: number): Promise<EPGSource | undefined> {
+    return this.epgSources.get(id);
+  }
+  
+  async createEPGSource(source: InsertEPGSource): Promise<EPGSource> {
+    const id = this.epgSourceCounter++;
+    const now = new Date();
+    const newSource: EPGSource = {
+      ...source,
+      id,
+      description: source.description ?? null,
+      lastUpdate: now,
+      channelCount: 0
+    };
+    this.epgSources.set(id, newSource);
+    return newSource;
+  }
+  
+  async updateEPGSource(id: number, sourceUpdate: Partial<InsertEPGSource>): Promise<EPGSource | undefined> {
+    const source = this.epgSources.get(id);
+    if (!source) return undefined;
+    
+    const updatedSource: EPGSource = { ...source, ...sourceUpdate };
+    this.epgSources.set(id, updatedSource);
+    return updatedSource;
+  }
+  
+  async deleteEPGSource(id: number): Promise<boolean> {
+    return this.epgSources.delete(id);
+  }
+  
+  async refreshEPGSource(id: number): Promise<EPGSource | undefined> {
+    const source = this.epgSources.get(id);
+    if (!source) return undefined;
+    
+    // In a real implementation, this would fetch and parse the EPG XML
+    // For now, just update the lastUpdate timestamp
+    const updatedSource: EPGSource = {
+      ...source,
+      lastUpdate: new Date()
+    };
+    this.epgSources.set(id, updatedSource);
+    return updatedSource;
   }
   
   // Initialize with sample data for testing
@@ -1345,6 +1408,62 @@ export class DatabaseStorage implements IStorage {
       console.error("Error deleting episode:", error);
       return false;
     }
+  }
+  
+  // EPG operations
+  async getEPGSources(): Promise<EPGSource[]> {
+    return await db.select().from(epgSources);
+  }
+  
+  async getEPGSource(id: number): Promise<EPGSource | undefined> {
+    const [source] = await db.select().from(epgSources).where(eq(epgSources.id, id));
+    return source;
+  }
+  
+  async createEPGSource(source: InsertEPGSource): Promise<EPGSource> {
+    const [newSource] = await db.insert(epgSources).values({
+      ...source,
+      channelCount: 0,
+      lastUpdate: new Date()
+    }).returning();
+    return newSource;
+  }
+  
+  async updateEPGSource(id: number, sourceUpdate: Partial<InsertEPGSource>): Promise<EPGSource | undefined> {
+    const [updatedSource] = await db
+      .update(epgSources)
+      .set(sourceUpdate)
+      .where(eq(epgSources.id, id))
+      .returning();
+    return updatedSource;
+  }
+  
+  async deleteEPGSource(id: number): Promise<boolean> {
+    try {
+      const source = await this.getEPGSource(id);
+      if (!source) {
+        return false;
+      }
+      
+      const result = await db
+        .delete(epgSources)
+        .where(eq(epgSources.id, id))
+        .returning({ id: epgSources.id });
+        
+      return result.length > 0;
+    } catch (error) {
+      console.error("Error deleting EPG source:", error);
+      return false;
+    }
+  }
+  
+  async refreshEPGSource(id: number): Promise<EPGSource | undefined> {
+    const [updatedSource] = await db
+      .update(epgSources)
+      .set({ lastUpdate: new Date() })
+      .where(eq(epgSources.id, id))
+      .returning();
+    return updatedSource;
   }
 }
 
