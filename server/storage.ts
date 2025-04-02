@@ -9,7 +9,7 @@ import {
   episodes, Episode, InsertEpisode,
   StreamSource
 } from "@shared/schema";
-import { and, eq, ne, count, desc, asc } from "drizzle-orm";
+import { and, eq, ne, lte, gte, count, desc, asc } from "drizzle-orm";
 import { db, pool } from "./db";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -943,15 +943,20 @@ export class DatabaseStorage implements IStorage {
   // Program operations
   async getCurrentPrograms(): Promise<Program[]> {
     const now = new Date();
-    return await db
-      .select()
-      .from(programs)
-      .where(
-        and(
-          ne(programs.startTime, undefined),
-          ne(programs.endTime, undefined)
-        )
-      );
+    try {
+      return await db
+        .select()
+        .from(programs)
+        .where(
+          and(
+            lte(programs.startTime, now),
+            gte(programs.endTime, now)
+          )
+        );
+    } catch (error) {
+      console.error("Error getting current programs:", error);
+      return [];
+    }
   }
 
   async getChannelPrograms(channelId: number): Promise<Program[]> {
