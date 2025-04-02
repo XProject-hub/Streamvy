@@ -35,9 +35,25 @@ export default function ChannelDetailPage() {
           : channel.streamSources as StreamSource[];
           
         // Sort by priority if available
-        const sortedSources = Array.isArray(sources)
+        let sortedSources = Array.isArray(sources)
           ? sources.sort((a, b) => (a.priority || 999) - (b.priority || 999))
           : [{ url: sources as string, priority: 1 }];
+        
+        // Add fallback streams for demo/development purposes
+        // These will only be used if the original streams fail
+        sortedSources = [
+          ...sortedSources,
+          { 
+            url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", 
+            priority: 900,
+            label: "Fallback Stream 1" 
+          },
+          { 
+            url: "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8", 
+            priority: 901,
+            label: "Fallback Stream 2" 
+          }
+        ];
           
         setStreamSources(sortedSources);
       } catch (err) {
@@ -179,9 +195,22 @@ export default function ChannelDetailPage() {
                 <h3 className="text-xl font-semibold mb-2">Stream Error</h3>
                 <p>We're having trouble playing this stream. It may be temporarily unavailable.</p>
               </div>
-              <Button onClick={() => setLocation("/live-tv")}>
-                Back to Live TV
-              </Button>
+              <div className="flex gap-3">
+                {streamSources.length > 1 && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setHasError(false);
+                      setCurrentSourceIndex((currentSourceIndex + 1) % streamSources.length);
+                    }}
+                  >
+                    Try Next Source
+                  </Button>
+                )}
+                <Button onClick={() => setLocation("/live-tv")}>
+                  Back to Live TV
+                </Button>
+              </div>
             </div>
           ) : !isPlaying ? (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -200,21 +229,38 @@ export default function ChannelDetailPage() {
         
         {/* Stream source indicators */}
         {streamSources.length > 1 && (
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-            <span>Stream sources:</span>
-            <div className="flex gap-1">
-              {streamSources.map((_, index) => (
-                <div 
-                  key={index} 
-                  className={`w-2 h-2 rounded-full ${
-                    index === currentSourceIndex 
-                      ? 'bg-primary' 
-                      : 'bg-gray-300 dark:bg-gray-700'
-                  }`}
-                  title={`Source ${index + 1}${index === currentSourceIndex ? ' (active)' : ''}`}
-                />
-              ))}
+          <div className="flex flex-col space-y-2 text-sm">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+              <span>Stream sources:</span>
+              <div className="flex gap-1">
+                {streamSources.map((_, index) => (
+                  <div 
+                    key={index} 
+                    className={`w-2 h-2 rounded-full ${
+                      index === currentSourceIndex 
+                        ? 'bg-primary' 
+                        : 'bg-gray-300 dark:bg-gray-700'
+                    } cursor-pointer`}
+                    onClick={() => {
+                      setHasError(false);
+                      setIsPlaying(false);
+                      setCurrentSourceIndex(index);
+                    }}
+                    title={`Source ${index + 1}${index === currentSourceIndex ? ' (active)' : ''}`}
+                  />
+                ))}
+              </div>
             </div>
+            
+            {/* Active source info */}
+            {streamSources[currentSourceIndex] && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                Active: {streamSources[currentSourceIndex].label || `Source ${currentSourceIndex + 1}`}
+                {currentSourceIndex >= streamSources.length - 2 && (
+                  <span className="ml-2 text-amber-500">(Using fallback stream)</span>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
