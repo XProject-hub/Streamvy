@@ -169,6 +169,7 @@ export class MemStorage implements IStorage {
     const user: User = { 
       ...insertUser, 
       id,
+      isAdmin: insertUser.isAdmin ?? false,
       createdAt: now
     };
     this.users.set(id, user);
@@ -192,7 +193,13 @@ export class MemStorage implements IStorage {
   
   async createCategory(category: InsertCategory): Promise<Category> {
     const id = this.categoryCounter++;
-    const newCategory: Category = { ...category, id };
+    const newCategory: Category = { 
+      ...category, 
+      id,
+      iconSvg: category.iconSvg ?? null,
+      gradientFrom: category.gradientFrom ?? null,
+      gradientTo: category.gradientTo ?? null
+    };
     this.categories.set(id, newCategory);
     return newCategory;
   }
@@ -262,7 +269,14 @@ export class MemStorage implements IStorage {
   
   async createChannel(channel: InsertChannel): Promise<Channel> {
     const id = this.channelCounter++;
-    const newChannel: Channel = { ...channel, id };
+    const newChannel: Channel = { 
+      ...channel, 
+      id,
+      logo: channel.logo ?? null,
+      categoryId: channel.categoryId ?? null,
+      countryId: channel.countryId ?? null,
+      epgId: channel.epgId ?? null
+    };
     this.channels.set(id, newChannel);
     return newChannel;
   }
@@ -296,7 +310,11 @@ export class MemStorage implements IStorage {
   
   async createProgram(program: InsertProgram): Promise<Program> {
     const id = this.programCounter++;
-    const newProgram: Program = { ...program, id };
+    const newProgram: Program = { 
+      ...program, 
+      id,
+      description: program.description ?? null
+    };
     this.programs.set(id, newProgram);
     return newProgram;
   }
@@ -331,7 +349,16 @@ export class MemStorage implements IStorage {
   
   async createMovie(movie: InsertMovie): Promise<Movie> {
     const id = this.movieCounter++;
-    const newMovie: Movie = { ...movie, id };
+    const newMovie: Movie = { 
+      ...movie, 
+      id,
+      categoryId: movie.categoryId ?? null,
+      poster: movie.poster ?? null,
+      year: movie.year ?? null,
+      rating: movie.rating ?? null,
+      duration: movie.duration ?? null,
+      isPremium: movie.isPremium ?? false
+    };
     this.movies.set(id, newMovie);
     return newMovie;
   }
@@ -366,7 +393,17 @@ export class MemStorage implements IStorage {
   
   async createSeries(series: InsertSeries): Promise<Series> {
     const id = this.seriesCounter++;
-    const newSeries: Series = { ...series, id };
+    const newSeries: Series = { 
+      ...series, 
+      id,
+      categoryId: series.categoryId ?? null,
+      poster: series.poster ?? null,
+      rating: series.rating ?? null,
+      isPremium: series.isPremium ?? false,
+      startYear: series.startYear ?? null,
+      endYear: series.endYear ?? null,
+      seasons: series.seasons ?? 1
+    };
     this.series.set(id, newSeries);
     return newSeries;
   }
@@ -397,7 +434,12 @@ export class MemStorage implements IStorage {
   
   async createEpisode(episode: InsertEpisode): Promise<Episode> {
     const id = this.episodeCounter++;
-    const newEpisode: Episode = { ...episode, id };
+    const newEpisode: Episode = { 
+      ...episode, 
+      id,
+      description: episode.description ?? null,
+      duration: episode.duration ?? null
+    };
     this.episodes.set(id, newEpisode);
     return newEpisode;
   }
