@@ -48,7 +48,15 @@ export function CountryFilter({ onCountrySelect, selectedCountryId }: CountryFil
             className="cursor-pointer"
             onClick={() => onCountrySelect(selectedCountryId === country.id ? null : country.id)}
           >
-            <span className="mr-1">{country.flag}</span> {country.name}
+            {country.flag ? (
+              <img 
+                src={country.flag} 
+                alt={country.code} 
+                className="w-4 h-3 mr-1 inline-block" 
+              />
+            ) : (
+              <span className="mr-1">{country.code.toUpperCase()}</span>
+            )} {country.name}
           </Badge>
         ))}
       </div>

@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/home-page";
 import LiveTvPage from "@/pages/live-tv-page";
+import ChannelDetailPage from "@/pages/channel-detail-page";
 import MoviesPage from "@/pages/movies-page";
 import SeriesPage from "@/pages/series-page";
 import AuthPage from "@/pages/auth-page";
@@ -31,6 +32,7 @@ function Router() {
         <Switch>
           <Route path="/" component={HomePage} />
           <Route path="/live-tv" component={LiveTvPage} />
+          <Route path="/live-tv/:id" component={ChannelDetailPage} />
           <Route path="/movies" component={MoviesPage} />
           <Route path="/series" component={SeriesPage} />
           <Route path="/auth" component={AuthPage} />
