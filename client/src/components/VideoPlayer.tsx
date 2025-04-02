@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
-import { Play, X, Volume2, VolumeX, Maximize, ChevronRight, ChevronLeft, Pause } from "lucide-react";
+import { Play, X, Volume2, VolumeX, Maximize, ChevronRight, ChevronLeft, Pause, Wifi, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StreamSource } from "@shared/schema";
-import { testStreamSource } from "@/lib/video-utils";
+import { testStreamSource, getOptimalVideoQuality, BandwidthTestResult } from "@/lib/video-utils";
 
 interface VideoPlayerProps {
   title: string;
@@ -35,16 +35,74 @@ export function VideoPlayer({
   const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
   const [activeSource, setActiveSource] = useState<StreamSource | null>(null);
   const [sourceError, setSourceError] = useState(false);
+  const [connectionQuality, setConnectionQuality] = useState<'auto' | 'high' | 'medium' | 'low'>('auto');
+  const [bandwidthInfo, setBandwidthInfo] = useState<BandwidthTestResult | null>(null);
+  const [autoQuality, setAutoQuality] = useState(true);
+  const [showBandwidthInfo, setShowBandwidthInfo] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<number | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const bandwidthCheckIntervalRef = useRef<number | null>(null);
 
   // Sort stream sources by priority
   const sortedSources = [...streamSources].sort((a, b) => a.priority - b.priority);
 
   // Set up HLS player or fallback to native video
+  // Check bandwidth periodically when video is playing
+  useEffect(() => {
+    if (!isPlaying || !isDialogOpen) return;
+    
+    const checkBandwidth = async () => {
+      try {
+        const result = await getOptimalVideoQuality(2); // Use 2 samples for faster results
+        setBandwidthInfo(result);
+        
+        if (autoQuality) {
+          setConnectionQuality(result.quality);
+          
+          // Apply quality change if using HLS with multiple qualities
+          if (hlsRef.current && hlsRef.current.levels && hlsRef.current.levels.length > 1) {
+            const hls = hlsRef.current;
+            
+            // Map our quality to HLS levels (usually sorted by bandwidth)
+            switch (result.quality) {
+              case 'high':
+                hls.currentLevel = 0; // Highest quality (usually first in the array)
+                break;
+              case 'medium':
+                hls.currentLevel = Math.floor(hls.levels.length / 2); // Middle quality
+                break;
+              case 'low':
+                hls.currentLevel = hls.levels.length - 1; // Lowest quality
+                break;
+              case 'auto':
+              default:
+                hls.currentLevel = -1; // Let HLS decide (auto)
+                break;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking bandwidth:', error);
+      }
+    };
+    
+    // Initial check
+    checkBandwidth();
+    
+    // Set up periodic checks
+    bandwidthCheckIntervalRef.current = window.setInterval(checkBandwidth, 30000); // Check every 30 seconds
+    
+    return () => {
+      if (bandwidthCheckIntervalRef.current) {
+        window.clearInterval(bandwidthCheckIntervalRef.current);
+        bandwidthCheckIntervalRef.current = null;
+      }
+    };
+  }, [isPlaying, isDialogOpen, autoQuality]);
+
   useEffect(() => {
     if (!videoRef.current || !sortedSources.length) return;
 
@@ -75,6 +133,9 @@ export function VideoPlayer({
           hlsRef.current.destroy();
           hlsRef.current = null;
         }
+        
+        // If we have bandwidth info, apply the quality level immediately
+        const quality = autoQuality && bandwidthInfo ? bandwidthInfo.quality : 'auto';
 
         // Handle HLS format
         if (source.format === 'hls' && Hls.isSupported()) {
@@ -261,6 +322,40 @@ export function VideoPlayer({
     }
   };
 
+  // Toggle auto quality selection
+  const toggleAutoQuality = () => {
+    setAutoQuality(!autoQuality);
+    
+    // If turning off auto quality, reset to highest quality
+    if (autoQuality && hlsRef.current && hlsRef.current.levels && hlsRef.current.levels.length > 1) {
+      hlsRef.current.currentLevel = 0; // Highest quality
+    }
+    // If turning on auto quality, apply current bandwidth measurement
+    else if (!autoQuality && bandwidthInfo && hlsRef.current && hlsRef.current.levels && hlsRef.current.levels.length > 1) {
+      // Apply current bandwidth measurement
+      switch (bandwidthInfo.quality) {
+        case 'high':
+          hlsRef.current.currentLevel = 0;
+          break;
+        case 'medium':
+          hlsRef.current.currentLevel = Math.floor(hlsRef.current.levels.length / 2);
+          break;
+        case 'low':
+          hlsRef.current.currentLevel = hlsRef.current.levels.length - 1;
+          break;
+        case 'auto':
+        default:
+          hlsRef.current.currentLevel = -1;
+          break;
+      }
+    }
+  };
+  
+  // Show or hide bandwidth info
+  const toggleBandwidthInfo = () => {
+    setShowBandwidthInfo(!showBandwidthInfo);
+  };
+
   return (
     <>
       <div 
@@ -342,7 +437,7 @@ export function VideoPlayer({
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-6xl p-0 bg-black text-white overflow-hidden" closeButton={false}>
+        <DialogContent className="max-w-6xl p-0 bg-black text-white overflow-hidden">
           <div 
             ref={videoContainerRef}
             className="relative aspect-video w-full"
@@ -365,6 +460,59 @@ export function VideoPlayer({
                   <h3 className="text-xl font-bold mb-4">Stream Unavailable</h3>
                   <p className="mb-6">Sorry, all streaming sources are currently unavailable.</p>
                   <Button onClick={() => setIsDialogOpen(false)}>Close Player</Button>
+                </div>
+              </div>
+            )}
+            
+            {/* Bandwidth Information Overlay */}
+            {showBandwidthInfo && bandwidthInfo && (
+              <div className="absolute top-16 right-4 bg-black bg-opacity-70 text-white p-4 rounded-md shadow-lg z-10 max-w-xs">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold">Connection Quality</h3>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-white h-6 w-6 p-0" 
+                    onClick={toggleBandwidthInfo}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Quality:</span>
+                    <span className={cn(
+                      bandwidthInfo.quality === 'high' ? "text-green-500" : 
+                      bandwidthInfo.quality === 'medium' ? "text-yellow-500" : 
+                      bandwidthInfo.quality === 'low' ? "text-red-500" : "text-gray-300"
+                    )}>
+                      {bandwidthInfo.quality === 'high' ? "High" : 
+                       bandwidthInfo.quality === 'medium' ? "Medium" : 
+                       bandwidthInfo.quality === 'low' ? "Low" : "Auto"}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span>Speed:</span>
+                    <span>{Math.round(bandwidthInfo.kbps)} kbps</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span>Latency:</span>
+                    <span>{Math.round(bandwidthInfo.rtt)} ms</span>
+                  </div>
+                  
+                  <div className="pt-2">
+                    <Button 
+                      variant={autoQuality ? "default" : "outline"}
+                      size="sm"
+                      className="w-full"
+                      onClick={toggleAutoQuality}
+                    >
+                      {autoQuality ? "Automatic Quality" : "Manual Quality"}
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -489,6 +637,38 @@ export function VideoPlayer({
                         className="w-20 hidden sm:block"
                       />
                     </div>
+                    
+                    {/* Quality/Connection Button */}
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-white hidden sm:flex"
+                      onClick={toggleBandwidthInfo}
+                      title="Connection quality"
+                    >
+                      {bandwidthInfo && bandwidthInfo.quality === 'high' ? (
+                        <Wifi className="h-6 w-6 text-green-500" />
+                      ) : bandwidthInfo && bandwidthInfo.quality === 'medium' ? (
+                        <Wifi className="h-6 w-6 text-yellow-500" />
+                      ) : bandwidthInfo && bandwidthInfo.quality === 'low' ? (
+                        <Wifi className="h-6 w-6 text-red-500" />
+                      ) : (
+                        <Wifi className="h-6 w-6" />
+                      )}
+                    </Button>
+                    
+                    {/* Auto-Quality Toggle */}
+                    <Button
+                      variant={autoQuality ? "default" : "outline"}
+                      size="sm"
+                      className={cn(
+                        "text-xs rounded hidden sm:flex",
+                        autoQuality ? "bg-primary-600 text-white" : "bg-transparent text-white border-white"
+                      )}
+                      onClick={toggleAutoQuality}
+                    >
+                      {autoQuality ? "Auto" : "Manual"}
+                    </Button>
                     
                     {/* Fullscreen Button */}
                     <Button 

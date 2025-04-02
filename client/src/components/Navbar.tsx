@@ -1,21 +1,16 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useTheme } from "./ThemeProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { UserMenu } from "./UserMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Sun, Moon } from "lucide-react";
+import { Search } from "lucide-react";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Navbar() {
-  const { theme, setTheme } = useTheme();
   const [location] = useLocation();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-
-  const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
-  };
 
   const navItems = [
     { name: "Live TV", path: "/live-tv" },
@@ -88,14 +83,7 @@ export function Navbar() {
           </div>
           
           {/* Theme Toggle */}
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={toggleTheme} 
-            className="rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-          >
-            {theme === 'dark' ? <Sun className="h-6 w-6" /> : <Moon className="h-6 w-6" />}
-          </Button>
+          <ThemeToggle />
           
           {/* User Menu */}
           <UserMenu />
