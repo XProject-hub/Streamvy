@@ -340,12 +340,12 @@ export default function AdminCategories() {
       
       {/* Category Form Dialog */}
       <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white">
               {selectedCategory ? 'Edit Category' : 'Add New Category'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-600 dark:text-gray-300">
               {selectedCategory 
                 ? 'Update the category details below' 
                 : 'Fill out the form below to add a new category'}
@@ -360,11 +360,12 @@ export default function AdminCategories() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Category Name</FormLabel>
+                      <FormLabel className="text-gray-800 dark:text-gray-200 font-medium">Category Name</FormLabel>
                       <FormControl>
                         <Input 
                           placeholder="Enter category name" 
                           {...field} 
+                          className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
                           onChange={(e) => {
                             field.onChange(e);
                             // Auto-generate slug if not editing an existing category
@@ -384,11 +385,15 @@ export default function AdminCategories() {
                   name="slug"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Slug</FormLabel>
+                      <FormLabel className="text-gray-800 dark:text-gray-200 font-medium">Slug</FormLabel>
                       <FormControl>
-                        <Input placeholder="category-slug" {...field} />
+                        <Input 
+                          placeholder="category-slug" 
+                          {...field} 
+                          className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                        />
                       </FormControl>
-                      <FormDescription>
+                      <FormDescription className="text-gray-600 dark:text-gray-400">
                         URL-friendly identifier (e.g., sports, news)
                       </FormDescription>
                       <FormMessage />
@@ -402,11 +407,15 @@ export default function AdminCategories() {
                 name="iconSvg"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Icon SVG Path</FormLabel>
+                    <FormLabel className="text-gray-800 dark:text-gray-200 font-medium">Icon SVG Path</FormLabel>
                     <FormControl>
-                      <Input placeholder="SVG path data" {...field} />
+                      <Input 
+                        placeholder="SVG path data" 
+                        {...field} 
+                        className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                      />
                     </FormControl>
-                    <FormDescription>
+                    <FormDescription className="text-gray-600 dark:text-gray-400">
                       SVG path data for the category icon (optional)
                     </FormDescription>
                     <FormMessage />
@@ -420,17 +429,22 @@ export default function AdminCategories() {
                   name="gradientFrom"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Gradient Start Color</FormLabel>
+                      <FormLabel className="text-gray-800 dark:text-gray-200 font-medium">Gradient Start Color</FormLabel>
                       <div className="flex gap-2">
                         <FormControl>
-                          <Input type="text" placeholder="#8b5cf6" {...field} />
+                          <Input 
+                            type="text" 
+                            placeholder="#8b5cf6" 
+                            {...field} 
+                            className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                          />
                         </FormControl>
                         <div 
-                          className="h-10 w-10 rounded border"
+                          className="h-10 w-10 rounded border border-gray-300 dark:border-gray-600"
                           style={{ backgroundColor: field.value || "#8b5cf6" }}
                         ></div>
                       </div>
-                      <FormDescription>
+                      <FormDescription className="text-gray-600 dark:text-gray-400">
                         Starting hex color for the gradient
                       </FormDescription>
                       <FormMessage />
@@ -443,17 +457,22 @@ export default function AdminCategories() {
                   name="gradientTo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Gradient End Color</FormLabel>
+                      <FormLabel className="text-gray-800 dark:text-gray-200 font-medium">Gradient End Color</FormLabel>
                       <div className="flex gap-2">
                         <FormControl>
-                          <Input type="text" placeholder="#ec4899" {...field} />
+                          <Input 
+                            type="text" 
+                            placeholder="#ec4899" 
+                            {...field} 
+                            className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                          />
                         </FormControl>
                         <div 
-                          className="h-10 w-10 rounded border"
+                          className="h-10 w-10 rounded border border-gray-300 dark:border-gray-600"
                           style={{ backgroundColor: field.value || "#ec4899" }}
                         ></div>
                       </div>
-                      <FormDescription>
+                      <FormDescription className="text-gray-600 dark:text-gray-400">
                         Ending hex color for the gradient
                       </FormDescription>
                       <FormMessage />
@@ -463,28 +482,32 @@ export default function AdminCategories() {
               </div>
               
               {/* Preview */}
-              <div className="border rounded-md p-4">
-                <h3 className="font-medium mb-2">Preview</h3>
+              <div className="border dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-md p-6">
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Preview</h3>
                 <div 
-                  className="h-16 w-full rounded-md flex items-center justify-center mb-2"
+                  className="h-20 w-full rounded-md flex items-center justify-center mb-4 shadow-sm"
                   style={{
                     background: `linear-gradient(to right, ${form.watch("gradientFrom") || "#8b5cf6"}, ${form.watch("gradientTo") || "#ec4899"})`
                   }}
                 >
                   {form.watch("iconSvg") ? (
-                    <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <g dangerouslySetInnerHTML={{ __html: form.watch("iconSvg") }}></g>
+                    <svg className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <g dangerouslySetInnerHTML={{ __html: form.watch("iconSvg") || "" }}></g>
                     </svg>
                   ) : (
-                    <span className="text-white">No icon provided</span>
+                    <span className="text-white font-medium">No icon provided</span>
                   )}
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Category: <span className="font-medium">{form.watch("name") || "Category Name"}</span>
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Slug: <span className="font-medium">{form.watch("slug") || "category-slug"}</span>
-                </p>
+                <div className="space-y-2">
+                  <div className="flex items-center">
+                    <span className="text-sm text-gray-600 dark:text-gray-400 w-24">Category:</span> 
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{form.watch("name") || "Category Name"}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="text-sm text-gray-600 dark:text-gray-400 w-24">Slug:</span> 
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{form.watch("slug") || "category-slug"}</span>
+                  </div>
+                </div>
               </div>
               
               <DialogFooter>
@@ -511,27 +534,30 @@ export default function AdminCategories() {
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white">
+              Confirm Deletion
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 dark:text-gray-300">
               Are you sure you want to delete the category "{selectedCategory?.name}"? 
               This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Warning</AlertTitle>
-            <AlertDescription>
+            <AlertTitle className="text-red-800 dark:text-red-300 font-medium">Warning</AlertTitle>
+            <AlertDescription className="text-red-700 dark:text-red-300">
               Deleting this category may impact content that uses it. Consider reassigning content to another category first.
             </AlertDescription>
           </Alert>
           
-          <DialogFooter>
+          <DialogFooter className="gap-2 mt-4">
             <Button 
               variant="outline" 
               onClick={() => setIsDeleteDialogOpen(false)}
+              className="border-gray-300 dark:border-gray-600"
             >
               Cancel
             </Button>
@@ -539,6 +565,7 @@ export default function AdminCategories() {
               variant="destructive" 
               onClick={handleDeleteConfirm}
               disabled={deleteCategoryMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white"
             >
               {deleteCategoryMutation.isPending ? "Deleting..." : "Delete Category"}
             </Button>
