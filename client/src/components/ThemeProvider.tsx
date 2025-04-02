@@ -30,7 +30,14 @@ export function ThemeProvider({
 
     root.classList.remove("light", "dark");
     root.classList.add(theme);
+    
+    // Apply data-theme attribute to ensure shadcn components use the right theme
+    root.setAttribute("data-theme", theme);
+    
     localStorage.setItem("theme", theme);
+    
+    // Log the theme change to help with debugging
+    console.log("Theme changed to:", theme);
   }, [theme]);
 
   // Set theme based on system preference if not set in localStorage

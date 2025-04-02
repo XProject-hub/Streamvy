@@ -89,7 +89,7 @@ export function UserMenu() {
         </DropdownMenu>
       ) : (
         <Link href="/auth">
-          <Button variant="default" className="bg-primary-600 hover:bg-primary-700">
+          <Button variant="default" className="bg-primary-600 hover:bg-primary-700 text-white dark:text-white font-medium">
             Sign In
           </Button>
         </Link>
