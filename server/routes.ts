@@ -154,6 +154,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Stream proxy to bypass CORS restrictions
   app.get("/api/stream-proxy", async (req, res) => {
     const streamUrl = req.query.url as string;
+    const userAgent = req.query.userAgent as string || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
+    const referer = req.query.referer as string || '';
     
     if (!streamUrl) {
       return res.status(400).json({ message: "Stream URL is required" });
@@ -165,22 +167,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         method: 'get',
         url: streamUrl,
         responseType: 'stream',
-        timeout: 10000, // 10 second timeout
+        timeout: 15000, // 15 second timeout
+        headers: {
+          'User-Agent': userAgent,
+          'Referer': referer || streamUrl.split('/').slice(0, 3).join('/'),
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Origin': streamUrl.split('/').slice(0, 3).join('/'),
+          'Connection': 'keep-alive',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
       });
       
-      // Forward content-type and other relevant headers
-      if (response.headers['content-type']) {
-        res.set('Content-Type', response.headers['content-type']);
-      }
+      // Forward all headers from the response
+      Object.entries(response.headers).forEach(([key, value]) => {
+        // Skip headers that would cause issues
+        if (!['content-length', 'transfer-encoding', 'connection'].includes(key.toLowerCase())) {
+          res.set(key, value as string);
+        }
+      });
+      
+      // Ensure CORS headers are set
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
       
       // Pipe the stream data to the response
       response.data.pipe(res);
     } catch (error: any) {
       console.error("Stream proxy error:", error);
+      console.error("URL that failed:", streamUrl);
+      
+      if (error.response) {
+        console.error("Status:", error.response.status);
+        console.error("Status text:", error.response.statusText);
+        console.error("Headers:", JSON.stringify(error.response.headers));
+      }
+      
       res.status(500).json({ 
         message: "Error proxying stream", 
         error: error.message || String(error),
-        url: streamUrl
+        url: streamUrl,
+        status: error.response?.status,
+        errorCode: error.code
       });
     }
   });

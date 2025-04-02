@@ -2,8 +2,9 @@ import { useEffect, useState, useRef } from "react";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Channel } from "@shared/schema";
-import { Loader2, ChevronLeft } from "lucide-react";
+import { Loader2, ChevronLeft, Link } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
 import Hls from "hls.js";
 
@@ -21,6 +22,8 @@ export default function ChannelDetailPage() {
   const [hasError, setHasError] = useState(false);
   const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
   const [streamSources, setStreamSources] = useState<StreamSource[]>([]);
+  const [customUrl, setCustomUrl] = useState("");
+  const [showCustomInput, setShowCustomInput] = useState(false);
 
   const { data: channel, isLoading, error } = useQuery<Channel>({
     queryKey: [`/api/channels/${id}`],
@@ -235,41 +238,94 @@ export default function ChannelDetailPage() {
         </div>
         
         {/* Stream source indicators */}
-        {streamSources.length > 1 && (
-          <div className="flex flex-col space-y-2 text-sm">
-            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-              <span>Stream sources:</span>
-              <div className="flex gap-1">
-                {streamSources.map((_, index) => (
-                  <div 
-                    key={index} 
-                    className={`w-2 h-2 rounded-full ${
-                      index === currentSourceIndex 
-                        ? 'bg-primary' 
-                        : 'bg-gray-300 dark:bg-gray-700'
-                    } cursor-pointer`}
+        <div className="flex flex-col space-y-4 text-sm">
+          {streamSources.length > 1 && (
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                <span>Stream sources:</span>
+                <div className="flex gap-1">
+                  {streamSources.map((_, index) => (
+                    <div 
+                      key={index} 
+                      className={`w-2 h-2 rounded-full ${
+                        index === currentSourceIndex 
+                          ? 'bg-primary' 
+                          : 'bg-gray-300 dark:bg-gray-700'
+                      } cursor-pointer`}
+                      onClick={() => {
+                        setHasError(false);
+                        setIsPlaying(false);
+                        setCurrentSourceIndex(index);
+                      }}
+                      title={`Source ${index + 1}${index === currentSourceIndex ? ' (active)' : ''}`}
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              {/* Active source info */}
+              {streamSources[currentSourceIndex] && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                  Active: {streamSources[currentSourceIndex].label || `Source ${currentSourceIndex + 1}`}
+                  {currentSourceIndex >= streamSources.length - 2 && (
+                    <span className="ml-2 text-amber-500">(Using fallback stream)</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Custom stream input */}
+          <div className="pt-2 border-t border-gray-200 dark:border-gray-800">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1"
+              onClick={() => setShowCustomInput(!showCustomInput)}
+            >
+              <Link className="h-4 w-4" />
+              {showCustomInput ? 'Hide Custom Stream' : 'Try Custom Stream'}
+            </Button>
+            
+            {showCustomInput && (
+              <div className="mt-2 space-y-2">
+                <div className="flex w-full items-center gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Enter m3u8 stream URL to test"
+                    value={customUrl}
+                    onChange={(e) => setCustomUrl(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button 
+                    variant="secondary" 
+                    size="sm"
+                    disabled={!customUrl}
                     onClick={() => {
+                      if (!customUrl) return;
+                      setStreamSources(prev => [
+                        {
+                          url: customUrl,
+                          priority: 0,
+                          label: "Custom Stream"
+                        },
+                        ...prev
+                      ]);
+                      setCurrentSourceIndex(0);
                       setHasError(false);
                       setIsPlaying(false);
-                      setCurrentSourceIndex(index);
                     }}
-                    title={`Source ${index + 1}${index === currentSourceIndex ? ' (active)' : ''}`}
-                  />
-                ))}
-              </div>
-            </div>
-            
-            {/* Active source info */}
-            {streamSources[currentSourceIndex] && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 italic">
-                Active: {streamSources[currentSourceIndex].label || `Source ${currentSourceIndex + 1}`}
-                {currentSourceIndex >= streamSources.length - 2 && (
-                  <span className="ml-2 text-amber-500">(Using fallback stream)</span>
-                )}
+                  >
+                    Test Stream
+                  </Button>
+                </div>
+                <div className="text-xs text-gray-500">
+                  For example: http://superiptv.xyz:8080/live/Afy8634/SmTSQpYRYs/334642.m3u8
+                </div>
               </div>
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
