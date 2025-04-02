@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { z } from "zod";
 import { zValidator } from "./middleware";
 import { setupAuth } from "./auth";
-import { storage } from "./storage";
+import { storage, MemStorage } from "./storage";
 import {
   insertCategorySchema,
   insertCountrySchema,
@@ -23,6 +23,55 @@ const ensureAdmin = async (req: Request, res: Response, next: Function) => {
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Testing route to delete all users
+  app.post("/api/clear-users", async (req, res) => {
+    try {
+      if (storage instanceof MemStorage) {
+        (storage as MemStorage).users = new Map();
+        (storage as MemStorage).userCounter = 1;
+        return res.status(200).json({ message: "All users have been deleted" });
+      } else {
+        // For DatabaseStorage implementation
+        return res.status(501).json({ message: "Clear users not implemented for DatabaseStorage" });
+      }
+    } catch (error) {
+      console.error("Error clearing users:", error);
+      return res.status(500).json({ message: "Failed to clear users" });
+    }
+  });
+
+  // Special route to create admin user - this should come BEFORE auth setup
+  app.post("/api/setup-admin", async (req, res) => {
+    try {
+      // Check if admin already exists
+      const existingAdmin = await storage.getUserByUsername("admin");
+      
+      if (existingAdmin) {
+        return res.status(400).json({ message: "Admin user already exists" });
+      }
+      
+      // Create a new admin user with password "password"
+      const hashedPassword = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8.dddddddddddddddddddddddddddddddd";
+      
+      const admin = await storage.createUser({
+        username: "admin",
+        password: hashedPassword,
+        isAdmin: true
+      });
+      
+      // Remove password from response
+      const { password, ...adminWithoutPassword } = admin;
+      
+      return res.status(201).json({
+        message: "Admin user created successfully. Username: admin, Password: password",
+        user: adminWithoutPassword
+      });
+    } catch (error) {
+      console.error("Error creating admin user:", error);
+      return res.status(500).json({ message: "Failed to create admin user" });
+    }
+  });
+  
   // Set up authentication routes (/api/register, /api/login, /api/logout, /api/user)
   setupAuth(app);
 

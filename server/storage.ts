@@ -137,6 +137,19 @@ export class MemStorage implements IStorage {
     
     // Initialize with sample data
     this.initializeSampleData();
+    
+    // Log the admin user
+    const adminUser = this.users.get(1);
+    console.log("===========================================");
+    console.log("Admin user from storage:", adminUser ? {
+      id: adminUser.id,
+      username: adminUser.username,
+      passwordLength: adminUser.password ? adminUser.password.length : 0,
+      passwordPreview: adminUser.password ? adminUser.password.substring(0, 20) + "..." : null,
+      isAdmin: adminUser.isAdmin,
+      createdAt: adminUser.createdAt
+    } : "Not found");
+    console.log("===========================================");
   }
   
   // User operations

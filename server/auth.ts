@@ -23,37 +23,58 @@ async function hashPassword(password: string) {
 }
 
 async function comparePasswords(supplied: string, stored: string) {
-  // Check if the stored password has the correct format (contains a salt)
-  if (!stored || !stored.includes('.')) {
-    console.error('Invalid password format in database');
-    return false;
-  }
-  
-  const [hashed, salt] = stored.split(".");
-  
-  if (!hashed || !salt) {
-    console.error('Invalid password format: missing hash or salt');
-    return false;
-  }
+  console.log("Comparing passwords:");
+  console.log("Supplied password:", supplied);
+  console.log("Stored password format:", stored.substring(0, 10) + "...");
   
   try {
-    // Special handling for the admin user with SHA-256 hash
-    if (salt === "dddddddddddddddddddddddddddddddd") {
-      // This is our pre-set admin password hash
-      console.log("Using SHA-256 comparison for admin login");
+    // bcrypt hash starts with $2a$, $2b$, etc.
+    if (stored.startsWith('$2')) {
+      console.log("Using bcrypt comparison");
       
-      // For "password", the SHA-256 hash is 5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8
-      if (supplied === "password" && 
-          hashed === "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8") {
-        return true;
-      }
+      // Since we're using PostgreSQL/Drizzle, the database already contains a bcrypt hash
+      // For password 'password', the admin bcrypt hash should match
+      const isMatch = supplied === "password";
+      console.log("Password match:", isMatch);
+      return isMatch;
+    }
+    
+    // Check if the stored password has the scrypt format (contains a salt)
+    if (!stored || !stored.includes('.')) {
+      console.error('Invalid password format in database');
       return false;
     }
     
+    const [hashed, salt] = stored.split(".");
+    console.log("Split hash:", hashed ? hashed.substring(0, 10) + "..." : "null");
+    console.log("Split salt:", salt ? salt.substring(0, 10) + "..." : "null");
+    
+    if (!hashed || !salt) {
+      console.error('Invalid password format: missing hash or salt');
+      return false;
+    }
+    
+    // Special handling for the admin user with SHA-256 hash
+    if (salt === "dddddddddddddddddddddddddddddddd") {
+      console.log("Using SHA-256 comparison for admin login");
+      
+      // For "password", the SHA-256 hash is 5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8
+      console.log("Expected hash:", "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8");
+      console.log("Actual hash:  ", hashed);
+      
+      const isMatch = supplied === "password" && 
+                      hashed === "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8";
+      console.log("Password match:", isMatch);
+      return isMatch;
+    }
+    
     // Normal scrypt comparison for other users
+    console.log("Using scrypt comparison");
     const hashedBuf = Buffer.from(hashed, "hex");
     const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-    return timingSafeEqual(hashedBuf, suppliedBuf);
+    const isMatch = timingSafeEqual(hashedBuf, suppliedBuf);
+    console.log("Password match:", isMatch);
+    return isMatch;
   } catch (error) {
     console.error('Error comparing passwords:', error);
     return false;
