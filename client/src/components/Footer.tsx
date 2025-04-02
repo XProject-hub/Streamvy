@@ -10,40 +10,40 @@ export function Footer() {
           <div>
             <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">StreamHive</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="/about"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">About Us</a></Link></li>
-              <li><Link href="/contact"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Contact</a></Link></li>
-              <li><Link href="/careers"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Careers</a></Link></li>
-              <li><Link href="/blog"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Blog</a></Link></li>
+              <li><Link href="/about" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">About Us</Link></li>
+              <li><Link href="/contact" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Contact</Link></li>
+              <li><Link href="/careers" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Careers</Link></li>
+              <li><Link href="/blog" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Blog</Link></li>
             </ul>
           </div>
           
           <div>
             <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">Browse</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="/live-tv"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Live TV</a></Link></li>
-              <li><Link href="/movies"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Movies</a></Link></li>
-              <li><Link href="/series"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Series</a></Link></li>
-              <li><Link href="/categories"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Categories</a></Link></li>
+              <li><Link href="/live-tv" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Live TV</Link></li>
+              <li><Link href="/movies" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Movies</Link></li>
+              <li><Link href="/series" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Series</Link></li>
+              <li><Link href="/categories" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Categories</Link></li>
             </ul>
           </div>
           
           <div>
             <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">Help</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="/account"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Account</a></Link></li>
-              <li><Link href="/billing"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Billing</a></Link></li>
-              <li><Link href="/devices"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Supported Devices</a></Link></li>
-              <li><Link href="/faq"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">FAQs</a></Link></li>
+              <li><Link href="/account" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Account</Link></li>
+              <li><Link href="/billing" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Billing</Link></li>
+              <li><Link href="/devices" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Supported Devices</Link></li>
+              <li><Link href="/faq" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">FAQs</Link></li>
             </ul>
           </div>
           
           <div>
             <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">Legal</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="/terms"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Terms of Service</a></Link></li>
-              <li><Link href="/privacy"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Privacy Policy</a></Link></li>
-              <li><Link href="/cookies"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Cookie Policy</a></Link></li>
-              <li><Link href="/dmca"><a className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">DMCA</a></Link></li>
+              <li><Link href="/terms" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Terms of Service</Link></li>
+              <li><Link href="/privacy" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Privacy Policy</Link></li>
+              <li><Link href="/cookies" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Cookie Policy</Link></li>
+              <li><Link href="/dmca" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">DMCA</Link></li>
             </ul>
           </div>
         </div>

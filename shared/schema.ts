@@ -40,11 +40,13 @@ export const countries = pgTable("countries", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code").notNull().unique(),
+  flag: text("flag"),
 });
 
 export const insertCountrySchema = createInsertSchema(countries).pick({
   name: true,
   code: true,
+  flag: true,
 });
 
 // Channels table
