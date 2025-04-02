@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CategoryFilter } from "@/components/CategoryFilter";
+import { CountryFilter } from "@/components/CountryFilter";
 import { ContentCard } from "@/components/ContentCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Movie, Category } from "@shared/schema";
@@ -11,12 +12,25 @@ import { useAuth } from "@/hooks/use-auth";
 
 export default function MoviesPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
   const [showPremiumOnly, setShowPremiumOnly] = useState(false);
   const { user } = useAuth();
   
-  // Fetch movies
+  // Fetch movies - update query depending on if country is selected
   const { data: movies, isLoading } = useQuery<Movie[]>({
-    queryKey: ["/api/movies"],
+    queryKey: selectedCountryId 
+      ? ["/api/movies/country", selectedCountryId] 
+      : ["/api/movies"],
+    queryFn: async () => {
+      const url = selectedCountryId 
+        ? `/api/movies/country/${selectedCountryId}` 
+        : "/api/movies";
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch movies");
+      }
+      return response.json();
+    }
   });
   
   // Filter movies by category and premium status
@@ -41,6 +55,12 @@ export default function MoviesPage() {
       <CategoryFilter 
         onCategorySelect={setSelectedCategoryId}
         selectedCategoryId={selectedCategoryId}
+      />
+      
+      {/* Countries */}
+      <CountryFilter
+        onCountrySelect={setSelectedCountryId}
+        selectedCountryId={selectedCountryId}
       />
       
       {/* Filters */}
@@ -87,11 +107,12 @@ export default function MoviesPage() {
             variant="link" 
             onClick={() => {
               setSelectedCategoryId(null);
+              setSelectedCountryId(null);
               setShowPremiumOnly(false);
             }}
             className="mt-2"
           >
-            Clear filters
+            Clear all filters
           </Button>
         </div>
       ) : (

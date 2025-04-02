@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CategoryFilter } from "@/components/CategoryFilter";
+import { CountryFilter } from "@/components/CountryFilter";
 import { ContentCard } from "@/components/ContentCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Series, Category } from "@shared/schema";
@@ -11,12 +12,25 @@ import { useAuth } from "@/hooks/use-auth";
 
 export default function SeriesPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
   const [showPremiumOnly, setShowPremiumOnly] = useState(false);
   const { user } = useAuth();
   
-  // Fetch series
+  // Fetch series - update query depending on if country is selected
   const { data: seriesData, isLoading } = useQuery<Series[]>({
-    queryKey: ["/api/series"],
+    queryKey: selectedCountryId 
+      ? ["/api/series/country", selectedCountryId] 
+      : ["/api/series"],
+    queryFn: async () => {
+      const url = selectedCountryId 
+        ? `/api/series/country/${selectedCountryId}` 
+        : "/api/series";
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch series");
+      }
+      return response.json();
+    }
   });
   
   // Filter series by category and premium status
@@ -41,6 +55,12 @@ export default function SeriesPage() {
       <CategoryFilter 
         onCategorySelect={setSelectedCategoryId}
         selectedCategoryId={selectedCategoryId}
+      />
+      
+      {/* Countries */}
+      <CountryFilter
+        onCountrySelect={setSelectedCountryId}
+        selectedCountryId={selectedCountryId}
       />
       
       {/* Filters */}
@@ -87,11 +107,12 @@ export default function SeriesPage() {
             variant="link" 
             onClick={() => {
               setSelectedCategoryId(null);
+              setSelectedCountryId(null);
               setShowPremiumOnly(false);
             }}
             className="mt-2"
           >
-            Clear filters
+            Clear all filters
           </Button>
         </div>
       ) : (

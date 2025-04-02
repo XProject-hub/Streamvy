@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CategoryFilter } from "@/components/CategoryFilter";
+import { CountryFilter } from "@/components/CountryFilter";
 import { ContentCard } from "@/components/ContentCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Channel, Program, Country } from "@shared/schema";
@@ -10,9 +11,21 @@ export default function LiveTvPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
   
-  // Fetch channels
+  // Fetch channels - update query depending on if country is selected
   const { data: channels, isLoading: channelsLoading } = useQuery<Channel[]>({
-    queryKey: ["/api/channels"],
+    queryKey: selectedCountryId 
+      ? ["/api/channels/country", selectedCountryId] 
+      : ["/api/channels"],
+    queryFn: async () => {
+      const url = selectedCountryId 
+        ? `/api/channels/country/${selectedCountryId}` 
+        : "/api/channels";
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch channels");
+      }
+      return response.json();
+    }
   });
   
   // Fetch current programs
@@ -20,16 +33,10 @@ export default function LiveTvPage() {
     queryKey: ["/api/programs/current"],
   });
   
-  // Fetch countries
-  const { data: countries } = useQuery<Country[]>({
-    queryKey: ["/api/countries"],
-  });
-  
-  // Filter channels by category and country
+  // Filter channels by category
   const filteredChannels = channels?.filter(channel => {
     const matchesCategory = selectedCategoryId ? channel.categoryId === selectedCategoryId : true;
-    const matchesCountry = selectedCountryId ? channel.countryId === selectedCountryId : true;
-    return matchesCategory && matchesCountry;
+    return matchesCategory;
   });
 
   return (
@@ -42,32 +49,11 @@ export default function LiveTvPage() {
         selectedCategoryId={selectedCategoryId}
       />
       
-      {/* Country Filter Pills */}
-      <div className="flex items-center space-x-2 mb-6 overflow-x-auto py-2">
-        <Button 
-          variant={selectedCountryId === null ? "default" : "outline"}
-          className="rounded-full whitespace-nowrap"
-          onClick={() => setSelectedCountryId(null)}
-        >
-          All Countries
-        </Button>
-        
-        {countries?.map((country) => (
-          <Button
-            key={country.id}
-            variant={selectedCountryId === country.id ? "default" : "outline"}
-            className="rounded-full whitespace-nowrap flex items-center"
-            onClick={() => setSelectedCountryId(country.id === selectedCountryId ? null : country.id)}
-          >
-            <img 
-              src={`https://flagcdn.com/w20/${country.code.toLowerCase()}.png`} 
-              className="w-4 h-4 mr-1" 
-              alt={country.name} 
-            />
-            {country.name}
-          </Button>
-        ))}
-      </div>
+      {/* Countries */}
+      <CountryFilter
+        onCountrySelect={setSelectedCountryId}
+        selectedCountryId={selectedCountryId}
+      />
       
       {/* Channels Grid */}
       {channelsLoading ? (
