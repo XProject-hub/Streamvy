@@ -380,12 +380,12 @@ export default function AdminChannels() {
       
       {/* Channel Form Dialog */}
       <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white">
               {selectedChannel ? 'Edit Channel' : 'Add New Channel'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-600 dark:text-gray-300">
               {selectedChannel 
                 ? 'Update the channel details below' 
                 : 'Fill out the form below to add a new channel'}
@@ -637,27 +637,30 @@ export default function AdminChannels() {
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white">
+              Confirm Deletion
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 dark:text-gray-300">
               Are you sure you want to delete the channel "{selectedChannel?.name}"? 
               This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Warning</AlertTitle>
-            <AlertDescription>
+            <AlertTitle className="text-red-800 dark:text-red-300 font-medium">Warning</AlertTitle>
+            <AlertDescription className="text-red-700 dark:text-red-300">
               Deleting this channel will remove all associated data, including program information.
             </AlertDescription>
           </Alert>
           
-          <DialogFooter>
+          <DialogFooter className="gap-2 mt-4">
             <Button 
               variant="outline" 
               onClick={() => setIsDeleteDialogOpen(false)}
+              className="border-gray-300 dark:border-gray-600"
             >
               Cancel
             </Button>
@@ -665,6 +668,7 @@ export default function AdminChannels() {
               variant="destructive" 
               onClick={handleDeleteConfirm}
               disabled={deleteChannelMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white"
             >
               {deleteChannelMutation.isPending ? "Deleting..." : "Delete Channel"}
             </Button>

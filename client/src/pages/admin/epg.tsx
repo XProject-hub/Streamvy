@@ -547,12 +547,12 @@ export default function AdminEPG() {
       
       {/* EPG Form Dialog */}
       <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white">
               {selectedEPG ? 'Edit EPG Source' : 'Add New EPG Source'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-600 dark:text-gray-300">
               {selectedEPG 
                 ? 'Update the EPG source details below' 
                 : 'Fill out the form below to add a new EPG source'}
@@ -566,9 +566,13 @@ export default function AdminEPG() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel className="text-gray-800 dark:text-gray-200 font-medium">Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter EPG source name" {...field} />
+                      <Input 
+                        placeholder="Enter EPG source name" 
+                        {...field} 
+                        className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -580,11 +584,15 @@ export default function AdminEPG() {
                 name="url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>URL</FormLabel>
+                    <FormLabel className="text-gray-800 dark:text-gray-200 font-medium">URL</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter EPG XML URL" {...field} />
+                      <Input 
+                        placeholder="Enter EPG XML URL" 
+                        {...field} 
+                        className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                      />
                     </FormControl>
-                    <FormDescription>
+                    <FormDescription className="text-gray-600 dark:text-gray-400">
                       URL to the XMLTV format EPG data
                     </FormDescription>
                     <FormMessage />
@@ -597,11 +605,11 @@ export default function AdminEPG() {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel className="text-gray-800 dark:text-gray-200 font-medium">Description</FormLabel>
                     <FormControl>
                       <Textarea 
                         placeholder="Enter description (optional)" 
-                        className="resize-none"
+                        className="resize-none bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
                         {...field} 
                       />
                     </FormControl>
@@ -625,10 +633,12 @@ export default function AdminEPG() {
       
       {/* Upload Dialog */}
       <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <DialogHeader>
-            <DialogTitle>Upload EPG XML File</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white">
+              Upload EPG XML File
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 dark:text-gray-300">
               Upload an XMLTV format file to import program guide data
             </DialogDescription>
           </DialogHeader>
@@ -640,9 +650,13 @@ export default function AdminEPG() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel className="text-gray-800 dark:text-gray-200 font-medium">Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter a name for this EPG data" {...field} />
+                      <Input 
+                        placeholder="Enter a name for this EPG data" 
+                        {...field} 
+                        className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -654,12 +668,13 @@ export default function AdminEPG() {
                 name="file"
                 render={({ field: { value, onChange, ...field } }) => (
                   <FormItem>
-                    <FormLabel>EPG XML File</FormLabel>
+                    <FormLabel className="text-gray-800 dark:text-gray-200 font-medium">EPG XML File</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         type="file"
                         accept=".xml"
+                        className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
@@ -668,7 +683,7 @@ export default function AdminEPG() {
                         }}
                       />
                     </FormControl>
-                    <FormDescription>
+                    <FormDescription className="text-gray-600 dark:text-gray-400">
                       Select an XMLTV format file to upload
                     </FormDescription>
                     <FormMessage />
@@ -678,7 +693,7 @@ export default function AdminEPG() {
               
               {isUploading && (
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                     <span>Uploading...</span>
                     <span>{Math.round(uploadProgress)}%</span>
                   </div>
@@ -686,13 +701,22 @@ export default function AdminEPG() {
                 </div>
               )}
               
-              <DialogFooter>
+              <DialogFooter className="gap-2 mt-4">
                 <DialogClose asChild>
-                  <Button type="button" variant="outline" disabled={isUploading}>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    disabled={isUploading}
+                    className="border-gray-300 dark:border-gray-600"
+                  >
                     Cancel
                   </Button>
                 </DialogClose>
-                <Button type="submit" disabled={isUploading}>
+                <Button 
+                  type="submit" 
+                  disabled={isUploading}
+                  className="bg-primary hover:bg-primary/90"
+                >
                   {isUploading ? 'Uploading...' : 'Upload'}
                 </Button>
               </DialogFooter>
@@ -703,21 +727,41 @@ export default function AdminEPG() {
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white">
+              Confirm Deletion
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 dark:text-gray-300">
               Are you sure you want to delete the EPG source "{selectedEPG?.name}"? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end space-x-2 pt-4">
+          
+          <Alert variant="destructive" className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle className="text-red-800 dark:text-red-300 font-medium">Warning</AlertTitle>
+            <AlertDescription className="text-red-700 dark:text-red-300">
+              Deleting this EPG source will remove all associated program data and channel mappings.
+            </AlertDescription>
+          </Alert>
+          
+          <DialogFooter className="gap-2 mt-4">
             <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button 
+                variant="outline" 
+                className="border-gray-300 dark:border-gray-600"
+              >
+                Cancel
+              </Button>
             </DialogClose>
-            <Button variant="destructive" onClick={handleDeleteConfirm}>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
               Delete
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
