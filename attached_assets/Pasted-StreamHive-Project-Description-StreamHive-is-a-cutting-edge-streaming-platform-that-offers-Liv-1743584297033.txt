@@ -1,0 +1,133 @@
+StreamHive
+
+ Project Description:
+StreamHive is a cutting-edge streaming platform that offers Live TV, Movies, and Series for free, with optional premium subscription features. It supports all major video formats including .ts, .m3u8, .mpeg, .mp4, and more. The site comes with a full-featured Admin Panel, allowing dynamic content management such as adding:
+
+Categories (Movies, Sports, News, etc.)
+
+Country-specific channels
+
+Multiple streaming sources for each stream (failover support)
+
+Program Guide (EPG) integration
+
+Pay-Per-View (PPV) & Premium Events for subscribers
+
+Users can stream without registration, but subscribers unlock premium events, exclusive PPV content, and faster access speeds.
+
+🧠 Core Features:
+🎥 User-Side (Frontend):
+Free access to thousands of channels and VOD content
+
+Multi-format video support: .ts, .m3u8, .mpeg, .mp4, .avi, etc.
+
+Auto-switching to backup links if one fails
+
+Modern UI with dark/light theme toggle
+
+Integrated TV Guide (EPG) per channel
+
+Search by title, category, or country
+
+Chromecast & AirPlay support
+
+Auto-resolution switch based on internet speed
+
+PPV Events & Premium Area (only for subscribers)
+
+🔧 Admin Panel:
+Add/Edit/Delete:
+
+Live TV channels
+
+Movie & Series entries
+
+Categories & genres
+
+Countries and flags
+
+Multiple links per stream (with priority order)
+
+Upload or link EPG data (XMLTV)
+
+Monitor active users and most-watched content
+
+Subscription & PPV event management
+
+Optional ad management (pre-roll, mid-roll, banner)
+
+🧱 Technology Stack:
+🎯 Frontend:
+HTML5, CSS3, TailwindCSS
+
+JavaScript (ES6+)
+
+ReactJS or VueJS for dynamic interface
+
+HLS.js / Video.js for video player (multi-format support)
+
+Axios (for API calls)
+
+🔐 Backend:
+PHP 8 or Node.js (Express) (your choice)
+
+MySQL / MariaDB (database)
+
+JWT / Session-based login for admin & subscribers
+
+API to fetch streams, categories, EPG, etc.
+
+☁️ Server & Streaming:
+Nginx with RTMP module or HLS support
+
+FFmpeg (for stream conversion, thumbnailing)
+
+Redis (optional - for caching EPG & popular content)
+
+Cloudflare for CDN/protection
+
+📱 Optional Extras:
+Mobile Web App (PWA)
+
+Android TV / FireTV App (later phase)
+
+EPG parsing using WebGrab+Plus or XMLTV sources
+
+💡 User Cases:
+🎯 General Users (No Login Required):
+Open the website and watch any channel instantly
+
+Choose country, category or just search
+
+Use the TV guide to know what's on
+
+Enjoy backup links if the main stream fails
+
+🥇 Subscribers:
+Get access to exclusive PPV events (Boxing, UFC, Football matches)
+
+Faster stream load & priority servers
+
+No ads or limited ad experience
+
+Option to mark favorites and continue watching
+
+🛠 Admin:
+Add new series, episodes, or live channels
+
+Set backup links (fallback streaming)
+
+Assign logos, categories, flags, EPG IDs
+
+Manage subscriptions and user list
+
+Upload or fetch EPG XML files and assign to channels
+
+🔥 Monetization Options:
+Ads on free content (pre-roll/mid-roll/banner)
+
+Subscription model (monthly/yearly)
+
+Pay-per-view pricing (per event)
+
+Sponsorship from brands (e.g., “Tonight’s Movie Brought to you by…”)
