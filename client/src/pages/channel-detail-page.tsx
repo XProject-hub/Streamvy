@@ -77,7 +77,14 @@ export default function ChannelDetailPage() {
       return;
     }
     
-    const streamUrl = currentSource.url;
+    // Use proxy for streams that may have CORS issues
+    // Skip proxy for demo streams that are known to work
+    const isDemoStream = currentSource.url.includes('test-streams.mux.dev') || 
+                          currentSource.url.includes('akamaized.net');
+    
+    const streamUrl = isDemoStream
+      ? currentSource.url
+      : `/api/stream-proxy?url=${encodeURIComponent(currentSource.url)}`;
     
     // Check if the URL is an HLS stream (.m3u8)
     if (streamUrl.includes('.m3u8') && Hls.isSupported()) {

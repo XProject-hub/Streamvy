@@ -151,6 +151,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes (/api/register, /api/login, /api/logout, /api/user)
   setupAuth(app);
 
+  // Stream proxy to bypass CORS restrictions
+  app.get("/api/stream-proxy", async (req, res) => {
+    const streamUrl = req.query.url as string;
+    
+    if (!streamUrl) {
+      return res.status(400).json({ message: "Stream URL is required" });
+    }
+    
+    try {
+      // Get stream with axios and pipe it to response
+      const response = await axios({
+        method: 'get',
+        url: streamUrl,
+        responseType: 'stream',
+        timeout: 10000, // 10 second timeout
+      });
+      
+      // Forward content-type and other relevant headers
+      if (response.headers['content-type']) {
+        res.set('Content-Type', response.headers['content-type']);
+      }
+      
+      // Pipe the stream data to the response
+      response.data.pipe(res);
+    } catch (error: any) {
+      console.error("Stream proxy error:", error);
+      res.status(500).json({ 
+        message: "Error proxying stream", 
+        error: error.message || String(error),
+        url: streamUrl
+      });
+    }
+  });
+
   // Public API routes
   
   // Categories
