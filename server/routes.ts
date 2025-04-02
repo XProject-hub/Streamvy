@@ -258,6 +258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const movies = await storage.getMovies();
       res.json(movies);
     } catch (error) {
+      console.error("Error fetching movies:", error);
       res.status(500).json({ message: "Failed to get movies" });
     }
   });
@@ -273,6 +274,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(movies);
     } catch (error) {
       res.status(500).json({ message: "Failed to get movies by category" });
+    }
+  });
+  
+  app.get("/api/movies/country/:countryId", async (req, res) => {
+    try {
+      const countryId = parseInt(req.params.countryId);
+      if (isNaN(countryId)) {
+        return res.status(400).json({ message: "Invalid country ID" });
+      }
+      
+      const movies = await storage.getMoviesByCountry(countryId);
+      res.json(movies);
+    } catch (error) {
+      console.error("Error fetching movies by country:", error);
+      res.status(500).json({ message: "Failed to get movies by country" });
     }
   });
   
@@ -300,6 +316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const series = await storage.getAllSeries();
       res.json(series);
     } catch (error) {
+      console.error("Error fetching series:", error);
       res.status(500).json({ message: "Failed to get series" });
     }
   });
@@ -314,7 +331,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const series = await storage.getSeriesByCategory(categoryId);
       res.json(series);
     } catch (error) {
+      console.error("Error fetching series by category:", error);
       res.status(500).json({ message: "Failed to get series by category" });
+    }
+  });
+  
+  app.get("/api/series/country/:countryId", async (req, res) => {
+    try {
+      const countryId = parseInt(req.params.countryId);
+      if (isNaN(countryId)) {
+        return res.status(400).json({ message: "Invalid country ID" });
+      }
+      
+      const series = await storage.getSeriesByCountry(countryId);
+      res.json(series);
+    } catch (error) {
+      console.error("Error fetching series by country:", error);
+      res.status(500).json({ message: "Failed to get series by country" });
     }
   });
   

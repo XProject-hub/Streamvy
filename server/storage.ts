@@ -67,6 +67,7 @@ export interface IStorage {
   getMovies(): Promise<Movie[]>;
   getMovie(id: number): Promise<Movie | undefined>;
   getMoviesByCategory(categoryId: number): Promise<Movie[]>;
+  getMoviesByCountry(countryId: number): Promise<Movie[]>;
   createMovie(movie: InsertMovie): Promise<Movie>;
   updateMovie(id: number, movie: Partial<InsertMovie>): Promise<Movie | undefined>;
   deleteMovie(id: number): Promise<boolean>;
@@ -75,6 +76,7 @@ export interface IStorage {
   getAllSeries(): Promise<Series[]>;
   getSeries(id: number): Promise<Series | undefined>;
   getSeriesByCategory(categoryId: number): Promise<Series[]>;
+  getSeriesByCountry(countryId: number): Promise<Series[]>;
   createSeries(series: InsertSeries): Promise<Series>;
   updateSeries(id: number, series: Partial<InsertSeries>): Promise<Series | undefined>;
   deleteSeries(id: number): Promise<boolean>;
@@ -386,12 +388,19 @@ export class MemStorage implements IStorage {
     );
   }
   
+  async getMoviesByCountry(countryId: number): Promise<Movie[]> {
+    return Array.from(this.movies.values()).filter(
+      (movie) => movie.countryId === countryId
+    );
+  }
+  
   async createMovie(movie: InsertMovie): Promise<Movie> {
     const id = this.movieCounter++;
     const newMovie: Movie = { 
       ...movie, 
       id,
       categoryId: movie.categoryId ?? null,
+      countryId: movie.countryId ?? null,
       poster: movie.poster ?? null,
       year: movie.year ?? null,
       rating: movie.rating ?? null,
@@ -430,12 +439,19 @@ export class MemStorage implements IStorage {
     );
   }
   
+  async getSeriesByCountry(countryId: number): Promise<Series[]> {
+    return Array.from(this.series.values()).filter(
+      (series) => series.countryId === countryId
+    );
+  }
+  
   async createSeries(series: InsertSeries): Promise<Series> {
     const id = this.seriesCounter++;
     const newSeries: Series = { 
       ...series, 
       id,
       categoryId: series.categoryId ?? null,
+      countryId: series.countryId ?? null,
       poster: series.poster ?? null,
       rating: series.rating ?? null,
       isPremium: series.isPremium ?? false,
@@ -1643,6 +1659,13 @@ export class DatabaseStorage implements IStorage {
       .from(movies)
       .where(eq(movies.categoryId, categoryId));
   }
+  
+  async getMoviesByCountry(countryId: number): Promise<Movie[]> {
+    return await db
+      .select()
+      .from(movies)
+      .where(eq(movies.countryId, countryId));
+  }
 
   async createMovie(movie: InsertMovie): Promise<Movie> {
     const [newMovie] = await db
@@ -1703,6 +1726,13 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(series)
       .where(eq(series.categoryId, categoryId));
+  }
+  
+  async getSeriesByCountry(countryId: number): Promise<Series[]> {
+    return await db
+      .select()
+      .from(series)
+      .where(eq(series.countryId, countryId));
   }
 
   async createSeries(seriesData: InsertSeries): Promise<Series> {

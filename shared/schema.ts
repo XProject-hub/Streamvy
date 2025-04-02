@@ -96,6 +96,7 @@ export const movies = pgTable("movies", {
   rating: text("rating"),
   duration: integer("duration"), // in minutes
   categoryId: integer("category_id").references(() => categories.id),
+  countryId: integer("country_id").references(() => countries.id),
   streamSources: jsonb("stream_sources").notNull(), // Array of URLs with priority
   isPremium: boolean("is_premium").default(false).notNull(),
 });
@@ -107,6 +108,7 @@ export const insertMovieSchema = createInsertSchema(movies).pick({
   rating: true,
   duration: true,
   categoryId: true,
+  countryId: true,
   streamSources: true,
   isPremium: true,
 });
@@ -120,6 +122,7 @@ export const series = pgTable("series", {
   endYear: integer("end_year"),
   rating: text("rating"),
   categoryId: integer("category_id").references(() => categories.id),
+  countryId: integer("country_id").references(() => countries.id),
   seasons: integer("seasons").default(1).notNull(),
   isPremium: boolean("is_premium").default(false).notNull(),
 });
@@ -131,6 +134,7 @@ export const insertSeriesSchema = createInsertSchema(series).pick({
   endYear: true,
   rating: true,
   categoryId: true,
+  countryId: true,
   seasons: true,
   isPremium: true,
 });
