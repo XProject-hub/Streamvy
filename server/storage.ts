@@ -9,10 +9,18 @@ import {
   episodes, Episode, InsertEpisode,
   StreamSource
 } from "@shared/schema";
+import { and, eq, ne, count, desc, asc } from "drizzle-orm";
+import { db, pool } from "./db";
 import session from "express-session";
+import connectPg from "connect-pg-simple";
 import createMemoryStore from "memorystore";
 
+// Session stores
 const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
+
+// Define session store type
+type SessionStore = session.Store;
 
 // Interface for storage operations
 export interface IStorage {
@@ -76,7 +84,7 @@ export interface IStorage {
   deleteEpisode(id: number): Promise<boolean>;
   
   // Session store
-  sessionStore: session.SessionStore;
+  sessionStore: SessionStore;
 }
 
 // In-memory storage implementation
@@ -102,7 +110,7 @@ export class MemStorage implements IStorage {
   private episodeCounter: number;
   
   // Session store
-  public sessionStore: session.SessionStore;
+  public sessionStore: SessionStore;
   
   constructor() {
     this.users = new Map();
@@ -756,4 +764,371 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// PostgreSQL storage implementation
+export class DatabaseStorage implements IStorage {
+  // Session store
+  sessionStore: SessionStore;
+
+  constructor() {
+    this.sessionStore = new PostgresSessionStore({
+      pool,
+      createTableIfMissing: true
+    });
+  }
+
+  // User operations
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
+  // Category operations
+  async getCategories(): Promise<Category[]> {
+    return await db.select().from(categories);
+  }
+
+  async getCategory(id: number): Promise<Category | undefined> {
+    const [category] = await db
+      .select()
+      .from(categories)
+      .where(eq(categories.id, id));
+    return category;
+  }
+
+  async getCategoryBySlug(slug: string): Promise<Category | undefined> {
+    const [category] = await db
+      .select()
+      .from(categories)
+      .where(eq(categories.slug, slug));
+    return category;
+  }
+
+  async createCategory(category: InsertCategory): Promise<Category> {
+    const [newCategory] = await db
+      .insert(categories)
+      .values(category)
+      .returning();
+    return newCategory;
+  }
+
+  async updateCategory(
+    id: number,
+    categoryUpdate: Partial<InsertCategory>
+  ): Promise<Category | undefined> {
+    const [updatedCategory] = await db
+      .update(categories)
+      .set(categoryUpdate)
+      .where(eq(categories.id, id))
+      .returning();
+    return updatedCategory;
+  }
+
+  async deleteCategory(id: number): Promise<boolean> {
+    const result = await db
+      .delete(categories)
+      .where(eq(categories.id, id))
+      .returning({ id: categories.id });
+    return result.length > 0;
+  }
+
+  // Country operations
+  async getCountries(): Promise<Country[]> {
+    return await db.select().from(countries);
+  }
+
+  async getCountry(id: number): Promise<Country | undefined> {
+    const [country] = await db
+      .select()
+      .from(countries)
+      .where(eq(countries.id, id));
+    return country;
+  }
+
+  async createCountry(country: InsertCountry): Promise<Country> {
+    const [newCountry] = await db
+      .insert(countries)
+      .values(country)
+      .returning();
+    return newCountry;
+  }
+
+  async updateCountry(
+    id: number,
+    countryUpdate: Partial<InsertCountry>
+  ): Promise<Country | undefined> {
+    const [updatedCountry] = await db
+      .update(countries)
+      .set(countryUpdate)
+      .where(eq(countries.id, id))
+      .returning();
+    return updatedCountry;
+  }
+
+  async deleteCountry(id: number): Promise<boolean> {
+    const result = await db
+      .delete(countries)
+      .where(eq(countries.id, id))
+      .returning({ id: countries.id });
+    return result.length > 0;
+  }
+
+  // Channel operations
+  async getChannels(): Promise<Channel[]> {
+    return await db.select().from(channels);
+  }
+
+  async getChannel(id: number): Promise<Channel | undefined> {
+    const [channel] = await db
+      .select()
+      .from(channels)
+      .where(eq(channels.id, id));
+    return channel;
+  }
+
+  async getChannelsByCategory(categoryId: number): Promise<Channel[]> {
+    return await db
+      .select()
+      .from(channels)
+      .where(eq(channels.categoryId, categoryId));
+  }
+
+  async getChannelsByCountry(countryId: number): Promise<Channel[]> {
+    return await db
+      .select()
+      .from(channels)
+      .where(eq(channels.countryId, countryId));
+  }
+
+  async createChannel(channel: InsertChannel): Promise<Channel> {
+    const [newChannel] = await db
+      .insert(channels)
+      .values(channel)
+      .returning();
+    return newChannel;
+  }
+
+  async updateChannel(
+    id: number,
+    channelUpdate: Partial<InsertChannel>
+  ): Promise<Channel | undefined> {
+    const [updatedChannel] = await db
+      .update(channels)
+      .set(channelUpdate)
+      .where(eq(channels.id, id))
+      .returning();
+    return updatedChannel;
+  }
+
+  async deleteChannel(id: number): Promise<boolean> {
+    const result = await db
+      .delete(channels)
+      .where(eq(channels.id, id))
+      .returning({ id: channels.id });
+    return result.length > 0;
+  }
+
+  // Program operations
+  async getCurrentPrograms(): Promise<Program[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(programs)
+      .where(
+        and(
+          ne(programs.startTime, undefined),
+          ne(programs.endTime, undefined)
+        )
+      );
+  }
+
+  async getChannelPrograms(channelId: number): Promise<Program[]> {
+    return await db
+      .select()
+      .from(programs)
+      .where(eq(programs.channelId, channelId));
+  }
+
+  async createProgram(program: InsertProgram): Promise<Program> {
+    const [newProgram] = await db
+      .insert(programs)
+      .values(program)
+      .returning();
+    return newProgram;
+  }
+
+  async updateProgram(
+    id: number,
+    programUpdate: Partial<InsertProgram>
+  ): Promise<Program | undefined> {
+    const [updatedProgram] = await db
+      .update(programs)
+      .set(programUpdate)
+      .where(eq(programs.id, id))
+      .returning();
+    return updatedProgram;
+  }
+
+  async deleteProgram(id: number): Promise<boolean> {
+    const result = await db
+      .delete(programs)
+      .where(eq(programs.id, id))
+      .returning({ id: programs.id });
+    return result.length > 0;
+  }
+
+  // Movie operations
+  async getMovies(): Promise<Movie[]> {
+    return await db.select().from(movies);
+  }
+
+  async getMovie(id: number): Promise<Movie | undefined> {
+    const [movie] = await db
+      .select()
+      .from(movies)
+      .where(eq(movies.id, id));
+    return movie;
+  }
+
+  async getMoviesByCategory(categoryId: number): Promise<Movie[]> {
+    return await db
+      .select()
+      .from(movies)
+      .where(eq(movies.categoryId, categoryId));
+  }
+
+  async createMovie(movie: InsertMovie): Promise<Movie> {
+    const [newMovie] = await db
+      .insert(movies)
+      .values(movie)
+      .returning();
+    return newMovie;
+  }
+
+  async updateMovie(
+    id: number,
+    movieUpdate: Partial<InsertMovie>
+  ): Promise<Movie | undefined> {
+    const [updatedMovie] = await db
+      .update(movies)
+      .set(movieUpdate)
+      .where(eq(movies.id, id))
+      .returning();
+    return updatedMovie;
+  }
+
+  async deleteMovie(id: number): Promise<boolean> {
+    const result = await db
+      .delete(movies)
+      .where(eq(movies.id, id))
+      .returning({ id: movies.id });
+    return result.length > 0;
+  }
+
+  // Series operations
+  async getAllSeries(): Promise<Series[]> {
+    return await db.select().from(series);
+  }
+
+  async getSeries(id: number): Promise<Series | undefined> {
+    const [seriesItem] = await db
+      .select()
+      .from(series)
+      .where(eq(series.id, id));
+    return seriesItem;
+  }
+
+  async getSeriesByCategory(categoryId: number): Promise<Series[]> {
+    return await db
+      .select()
+      .from(series)
+      .where(eq(series.categoryId, categoryId));
+  }
+
+  async createSeries(seriesData: InsertSeries): Promise<Series> {
+    const [newSeries] = await db
+      .insert(series)
+      .values(seriesData)
+      .returning();
+    return newSeries;
+  }
+
+  async updateSeries(
+    id: number,
+    seriesUpdate: Partial<InsertSeries>
+  ): Promise<Series | undefined> {
+    const [updatedSeries] = await db
+      .update(series)
+      .set(seriesUpdate)
+      .where(eq(series.id, id))
+      .returning();
+    return updatedSeries;
+  }
+
+  async deleteSeries(id: number): Promise<boolean> {
+    const result = await db
+      .delete(series)
+      .where(eq(series.id, id))
+      .returning({ id: series.id });
+    return result.length > 0;
+  }
+
+  // Episode operations
+  async getEpisodes(seriesId: number): Promise<Episode[]> {
+    return await db
+      .select()
+      .from(episodes)
+      .where(eq(episodes.seriesId, seriesId));
+  }
+
+  async getEpisode(id: number): Promise<Episode | undefined> {
+    const [episode] = await db
+      .select()
+      .from(episodes)
+      .where(eq(episodes.id, id));
+    return episode;
+  }
+
+  async createEpisode(episode: InsertEpisode): Promise<Episode> {
+    const [newEpisode] = await db
+      .insert(episodes)
+      .values(episode)
+      .returning();
+    return newEpisode;
+  }
+
+  async updateEpisode(
+    id: number,
+    episodeUpdate: Partial<InsertEpisode>
+  ): Promise<Episode | undefined> {
+    const [updatedEpisode] = await db
+      .update(episodes)
+      .set(episodeUpdate)
+      .where(eq(episodes.id, id))
+      .returning();
+    return updatedEpisode;
+  }
+
+  async deleteEpisode(id: number): Promise<boolean> {
+    const result = await db
+      .delete(episodes)
+      .where(eq(episodes.id, id))
+      .returning({ id: episodes.id });
+    return result.length > 0;
+  }
+}
+
+// Use database storage
+export const storage = new DatabaseStorage();
