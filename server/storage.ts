@@ -406,13 +406,14 @@ export class MemStorage implements IStorage {
   private initializeSampleData() {
     // Create initial admin user with properly formatted password for our scrypt implementation
     // Format is hash.salt where password is "password"
-    this.users.set(1, {
+    const adminUser: User = {
       id: 1,
       username: "admin",
       password: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8.dddddddddddddddddddddddddddddddd",
       isAdmin: true,
       createdAt: new Date()
-    });
+    };
+    this.users.set(1, adminUser);
     
     // Set counter to 2 so next user gets ID 2
     this.userCounter = 2;
