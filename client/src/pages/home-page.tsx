@@ -170,9 +170,19 @@ export default function HomePage() {
               </p>
             </div>
             <div>
-              <Button className="bg-white text-primary-600 font-medium px-6 py-2 rounded-md hover:bg-gray-100 transition">
+              <button 
+                style={{
+                  backgroundColor: '#ff5500', 
+                  color: '#ffffff',
+                  padding: '8px 24px',
+                  borderRadius: '6px',
+                  border: '2px solid #ffffff',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
                 Subscribe Now
-              </Button>
+              </button>
             </div>
           </div>
         </div>

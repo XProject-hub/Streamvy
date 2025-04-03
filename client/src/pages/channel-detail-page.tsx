@@ -223,14 +223,14 @@ export default function ChannelDetailPage() {
               <button
                 onClick={() => setLocation("/live-tv")}
                 style={{
-                  backgroundColor: '#3b82f6',
-                  color: 'white',
+                  backgroundColor: '#ff5500',
+                  color: '#ffffff',
                   padding: '10px 16px',
                   borderRadius: '6px',
                   display: 'flex',
                   alignItems: 'center',
-                  fontWeight: '500',
-                  border: 'none',
+                  fontWeight: '600',
+                  border: '2px solid #ffffff',
                   cursor: 'pointer'
                 }}
               >
