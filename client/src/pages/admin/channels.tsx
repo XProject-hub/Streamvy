@@ -110,6 +110,7 @@ export default function AdminChannels() {
   // Create channel mutation
   const createChannelMutation = useMutation({
     mutationFn: async (data: any) => {
+      console.log("Creating channel with data:", data); // Debug log
       const response = await apiRequest("POST", "/api/admin/channels", data);
       return response.json();
     },
@@ -187,7 +188,10 @@ export default function AdminChannels() {
       ...data,
       categoryId: parseInt(data.categoryId),
       countryId: parseInt(data.countryId),
+      isPremium: Boolean(data.isPremium), // Ensure isPremium is a boolean
     };
+    
+    console.log("Form submitted with data:", formattedData); // Debug log
     
     if (selectedChannel) {
       updateChannelMutation.mutate({ id: selectedChannel.id, data: formattedData });
@@ -271,12 +275,12 @@ export default function AdminChannels() {
   );
   
   // Get category and country names by ID
-  const getCategoryName = (id?: number) => {
+  const getCategoryName = (id?: number | null) => {
     if (!id) return "N/A";
     return categories?.find(cat => cat.id === id)?.name || "Unknown";
   };
   
-  const getCountryName = (id?: number) => {
+  const getCountryName = (id?: number | null) => {
     if (!id) return "N/A";
     return countries?.find(country => country.id === id)?.name || "Unknown";
   };
@@ -353,7 +357,11 @@ export default function AdminChannels() {
                       <TableCell>{getCategoryName(channel.categoryId)}</TableCell>
                       <TableCell>{getCountryName(channel.countryId)}</TableCell>
                       <TableCell>{channel.epgId || "N/A"}</TableCell>
-                      <TableCell>{channel.streamSources?.length || 0} sources</TableCell>
+                      <TableCell>
+                        {Array.isArray(channel.streamSources) 
+                          ? `${channel.streamSources.length} sources` 
+                          : "0 sources"}
+                      </TableCell>
                       <TableCell>
                         {channel.isPremium ? (
                           <div className="flex items-center">
@@ -562,95 +570,100 @@ export default function AdminChannels() {
                   </Button>
                 </div>
                 
-                {form.watch("streamSources").map((_, index) => (
-                  <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 mb-4 border rounded-md">
-                    <FormField
-                      control={form.control}
-                      name={`streamSources.${index}.url`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Stream URL</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter stream URL" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name={`streamSources.${index}.format`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Format</FormLabel>
-                          <Select 
-                            onValueChange={field.onChange} 
-                            defaultValue={field.value}
-                          >
+                {(() => {
+                  const sources = form.watch("streamSources");
+                  if (!Array.isArray(sources)) return null;
+                  
+                  return sources.map((_, index) => (
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 mb-4 border rounded-md">
+                      <FormField
+                        control={form.control}
+                        name={`streamSources.${index}.url`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Stream URL</FormLabel>
                             <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Format" />
-                              </SelectTrigger>
+                              <Input placeholder="Enter stream URL" {...field} />
                             </FormControl>
-                            <SelectContent>
-                              <SelectItem value="hls">HLS (m3u8)</SelectItem>
-                              <SelectItem value="mp4">MP4</SelectItem>
-                              <SelectItem value="dash">DASH</SelectItem>
-                              <SelectItem value="ts">TS</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name={`streamSources.${index}.priority`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Priority</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              min="1"
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name={`streamSources.${index}.label`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Label</FormLabel>
-                          <div className="flex items-center space-x-2">
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name={`streamSources.${index}.format`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Format</FormLabel>
+                            <Select 
+                              onValueChange={field.onChange} 
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Format" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="hls">HLS (m3u8)</SelectItem>
+                                <SelectItem value="mp4">MP4</SelectItem>
+                                <SelectItem value="dash">DASH</SelectItem>
+                                <SelectItem value="ts">TS</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name={`streamSources.${index}.priority`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Priority</FormLabel>
                             <FormControl>
-                              <Input placeholder="Main/Backup" {...field} />
+                              <Input 
+                                type="number" 
+                                min="1"
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value))}
+                              />
                             </FormControl>
-                            {index > 0 && (
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="icon"
-                                onClick={() => removeStreamSource(index)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                ))}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name={`streamSources.${index}.label`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Label</FormLabel>
+                            <div className="flex items-center space-x-2">
+                              <FormControl>
+                                <Input placeholder="Main/Backup" {...field} />
+                              </FormControl>
+                              {index > 0 && (
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="icon"
+                                  onClick={() => removeStreamSource(index)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  ));
+                })()}
               </div>
               
               <DialogFooter>
