@@ -139,12 +139,22 @@ export interface IStorage {
   
   // User subscription operations
   updateUserSubscription(userId: number, subscription: { isPremium: boolean; premiumTier?: string; premiumExpiresAt?: Date }): Promise<User>;
+  updateUserStripeInfo(userId: number, stripeInfo: { stripeCustomerId?: string; stripeSubscriptionId?: string }): Promise<User>;
   checkUserPremiumStatus(userId: number): Promise<{ isPremium: boolean; planName: string | null; expiryDate: Date | null }>;
   
   // Premium content operations
   getPremiumMovies(): Promise<Movie[]>;
   getPremiumSeries(): Promise<Series[]>;
   getPremiumChannels(): Promise<Channel[]>;
+  
+  // PPV operations
+  createPPVPurchase(purchase: InsertPPVPurchase): Promise<PPVPurchase>;
+  getPPVPurchaseById(id: number): Promise<PPVPurchase | undefined>;
+  getPPVPurchasesByUserId(userId: number): Promise<PPVPurchase[]>;
+  getUserPPVForContent(userId: number, contentType: string, contentId: number): Promise<PPVPurchase | undefined>;
+  updatePPVPurchaseStatus(id: number, status: string): Promise<PPVPurchase | undefined>;
+  deactivatePPVPurchase(id: number): Promise<PPVPurchase | undefined>;
+  getActivePPVPurchases(): Promise<PPVPurchase[]>;
   
   // Session store
   sessionStore: SessionStore;
@@ -167,6 +177,7 @@ export class MemStorage implements IStorage {
   private siteSettingsRecord: SiteSettings | undefined;
   private cryptoPayments: Map<number, CryptoPayment>;
   private cryptoWalletAddresses: Map<number, CryptoWalletAddress>;
+  private ppvPurchases: Map<number, PPVPurchase>;
   
   // Counters for IDs
   private userCounter: number;
@@ -182,6 +193,7 @@ export class MemStorage implements IStorage {
   private userPreferencesCounter: number;
   private cryptoPaymentCounter: number;
   private cryptoWalletAddressCounter: number;
+  private ppvPurchaseCounter: number;
   
   // Session store
   public sessionStore: SessionStore;
@@ -200,6 +212,7 @@ export class MemStorage implements IStorage {
     this.userPreferencesRecords = new Map();
     this.cryptoPayments = new Map();
     this.cryptoWalletAddresses = new Map();
+    this.ppvPurchases = new Map();
     
     this.userCounter = 1;
     this.categoryCounter = 1;
@@ -214,6 +227,7 @@ export class MemStorage implements IStorage {
     this.userPreferencesCounter = 1;
     this.cryptoPaymentCounter = 1;
     this.cryptoWalletAddressCounter = 1;
+    this.ppvPurchaseCounter = 1;
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // Clear expired sessions once a day
@@ -1028,6 +1042,24 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
   
+  // Stripe user info operations
+  async updateUserStripeInfo(userId: number, stripeInfo: { stripeCustomerId?: string; stripeSubscriptionId?: string }): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+    
+    // Update user with Stripe-related info
+    const updatedUser = {
+      ...user,
+      stripeCustomerId: stripeInfo.stripeCustomerId || user.stripeCustomerId || null,
+      stripeSubscriptionId: stripeInfo.stripeSubscriptionId || user.stripeSubscriptionId || null
+    };
+    
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+  
   async checkUserPremiumStatus(userId: number): Promise<{ isPremium: boolean; planName: string | null; expiryDate: Date | null }> {
     const user = this.users.get(userId);
     if (!user) {
@@ -1082,6 +1114,143 @@ export class MemStorage implements IStorage {
   
   async getPremiumChannels(): Promise<Channel[]> {
     return Array.from(this.channels.values()).filter(channel => channel.isPremium);
+  }
+  
+  // PPV operations
+  async createPPVPurchase(purchase: InsertPPVPurchase): Promise<PPVPurchase> {
+    const id = this.ppvPurchaseCounter++;
+    const now = new Date();
+    const newPurchase: PPVPurchase = {
+      ...purchase,
+      id,
+      purchasedAt: now,
+      status: purchase.status || 'pending'
+    };
+    this.ppvPurchases.set(id, newPurchase);
+    return newPurchase;
+  }
+  
+  async getPPVPurchaseById(id: number): Promise<PPVPurchase | undefined> {
+    return this.ppvPurchases.get(id);
+  }
+  
+  async getPPVPurchasesByUserId(userId: number): Promise<PPVPurchase[]> {
+    return Array.from(this.ppvPurchases.values())
+      .filter(purchase => purchase.userId === userId)
+      .sort((a, b) => b.purchasedAt.getTime() - a.purchasedAt.getTime());
+  }
+  
+  async getUserPPVForContent(userId: number, contentType: string, contentId: number): Promise<PPVPurchase | undefined> {
+    const now = new Date();
+    return Array.from(this.ppvPurchases.values()).find(
+      purchase => purchase.userId === userId && 
+                 purchase.contentType === contentType && 
+                 purchase.contentId === contentId &&
+                 purchase.status === 'completed' &&
+                 purchase.isActive &&
+                 purchase.expiresAt >= now
+    );
+  }
+  
+  async updatePPVPurchaseStatus(id: number, status: string): Promise<PPVPurchase | undefined> {
+    const purchase = this.ppvPurchases.get(id);
+    if (!purchase) return undefined;
+    
+    const updatedPurchase: PPVPurchase = { ...purchase, status };
+    this.ppvPurchases.set(id, updatedPurchase);
+    return updatedPurchase;
+  }
+  
+  async deactivatePPVPurchase(id: number): Promise<PPVPurchase | undefined> {
+    const purchase = this.ppvPurchases.get(id);
+    if (!purchase) return undefined;
+    
+    const updatedPurchase: PPVPurchase = { ...purchase, isActive: false };
+    this.ppvPurchases.set(id, updatedPurchase);
+    return updatedPurchase;
+  }
+  
+  async getActivePPVPurchases(): Promise<PPVPurchase[]> {
+    const now = new Date();
+    return Array.from(this.ppvPurchases.values())
+      .filter(purchase => purchase.isActive && purchase.status === 'completed' && purchase.expiresAt >= now);
+  }
+  
+  async getPopularPPVContent(): Promise<any[]> {
+    // Get statistics on PPV content in the last month
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    
+    // Group purchases by content type and ID
+    const purchaseCounts: Record<string, { count: number, contentType: string, contentId: number }> = {};
+    
+    Array.from(this.ppvPurchases.values())
+      .filter(purchase => purchase.purchasedAt >= oneMonthAgo && purchase.status === 'completed')
+      .forEach(purchase => {
+        const key = `${purchase.contentType}-${purchase.contentId}`;
+        if (!purchaseCounts[key]) {
+          purchaseCounts[key] = { 
+            count: 0, 
+            contentType: purchase.contentType, 
+            contentId: purchase.contentId 
+          };
+        }
+        purchaseCounts[key].count++;
+      });
+    
+    // Convert to array and sort by count
+    const popularItems = Object.values(purchaseCounts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10); // Top 10
+    
+    // Enrich with content details
+    const enrichedItems = await Promise.all(popularItems.map(async (item) => {
+      let contentDetails: any = { title: 'Unknown Content' };
+      
+      try {
+        if (item.contentType === 'movie') {
+          const movie = await this.getMovie(item.contentId);
+          if (movie) {
+            contentDetails = {
+              title: movie.title,
+              poster: movie.poster,
+              year: movie.year,
+              id: movie.id
+            };
+          }
+        } else if (item.contentType === 'series') {
+          const series = await this.getSeries(item.contentId);
+          if (series) {
+            contentDetails = {
+              title: series.title,
+              poster: series.poster,
+              seasons: series.seasons,
+              id: series.id
+            };
+          }
+        } else if (item.contentType === 'channel') {
+          const channel = await this.getChannel(item.contentId);
+          if (channel) {
+            contentDetails = {
+              title: channel.name,
+              logo: channel.logo,
+              id: channel.id
+            };
+          }
+        }
+      } catch (error) {
+        console.error('Error enriching popular PPV item:', error);
+      }
+      
+      return {
+        contentType: item.contentType,
+        contentId: item.contentId,
+        purchaseCount: item.count,
+        content: contentDetails
+      };
+    }));
+    
+    return enrichedItems;
   }
   
   private initializeSampleData() {
@@ -1500,6 +1669,81 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(channels)
       .where(eq(channels.isPremium, true));
+  }
+  
+  // PPV operations
+  async createPPVPurchase(purchase: InsertPPVPurchase): Promise<PPVPurchase> {
+    const [newPurchase] = await db
+      .insert(ppvPurchases)
+      .values(purchase)
+      .returning();
+    return newPurchase;
+  }
+  
+  async getPPVPurchaseById(id: number): Promise<PPVPurchase | undefined> {
+    const [purchase] = await db
+      .select()
+      .from(ppvPurchases)
+      .where(eq(ppvPurchases.id, id));
+    return purchase || undefined;
+  }
+  
+  async getPPVPurchasesByUserId(userId: number): Promise<PPVPurchase[]> {
+    return await db
+      .select()
+      .from(ppvPurchases)
+      .where(eq(ppvPurchases.userId, userId))
+      .orderBy(desc(ppvPurchases.purchasedAt));
+  }
+  
+  async getUserPPVForContent(userId: number, contentType: string, contentId: number): Promise<PPVPurchase | undefined> {
+    const now = new Date();
+    const [purchase] = await db
+      .select()
+      .from(ppvPurchases)
+      .where(
+        and(
+          eq(ppvPurchases.userId, userId),
+          eq(ppvPurchases.contentType, contentType),
+          eq(ppvPurchases.contentId, contentId),
+          eq(ppvPurchases.status, 'completed'),
+          eq(ppvPurchases.isActive, true),
+          gte(ppvPurchases.expiresAt, now)
+        )
+      );
+    return purchase || undefined;
+  }
+  
+  async updatePPVPurchaseStatus(id: number, status: string): Promise<PPVPurchase | undefined> {
+    const [updatedPurchase] = await db
+      .update(ppvPurchases)
+      .set({ status })
+      .where(eq(ppvPurchases.id, id))
+      .returning();
+    return updatedPurchase || undefined;
+  }
+  
+  async deactivatePPVPurchase(id: number): Promise<PPVPurchase | undefined> {
+    const [updatedPurchase] = await db
+      .update(ppvPurchases)
+      .set({ isActive: false })
+      .where(eq(ppvPurchases.id, id))
+      .returning();
+    return updatedPurchase || undefined;
+  }
+  
+  async getActivePPVPurchases(): Promise<PPVPurchase[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(ppvPurchases)
+      .where(
+        and(
+          eq(ppvPurchases.isActive, true),
+          eq(ppvPurchases.status, 'completed'),
+          gte(ppvPurchases.expiresAt, now)
+        )
+      );
   }
   
   // Watch History operations
@@ -2561,6 +2805,31 @@ export class DatabaseStorage implements IStorage {
         is_premium = ${subscription.isPremium}, 
         premium_plan = ${subscription.premiumTier || null}, 
         premium_expiry = ${subscription.premiumExpiresAt || null}
+      WHERE id = ${userId}
+    `);
+    
+    // Get the updated user
+    const updatedUser = await this.getUser(userId);
+    if (!updatedUser) {
+      throw new Error(`User with ID ${userId} not found after update`);
+    }
+    
+    return updatedUser;
+  }
+  
+  async updateUserStripeInfo(userId: number, stripeInfo: { stripeCustomerId?: string; stripeSubscriptionId?: string }): Promise<User> {
+    // Get the user first to confirm it exists
+    const user = await this.getUser(userId);
+    if (!user) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+    
+    // Use a direct SQL query to update Stripe-related fields
+    await db.execute(sql`
+      UPDATE users 
+      SET 
+        stripe_customer_id = ${stripeInfo.stripeCustomerId || null}, 
+        stripe_subscription_id = ${stripeInfo.stripeSubscriptionId || null}
       WHERE id = ${userId}
     `);
     

@@ -14,6 +14,9 @@ export const users = pgTable("users", {
   isPremium: boolean("is_premium").default(false).notNull(),
   premiumPlan: text("premium_plan"),
   premiumExpiry: timestamp("premium_expiry"),
+  // Stripe fields
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -437,6 +440,36 @@ export const insertCryptoWalletAddressSchema = createInsertSchema(cryptoWalletAd
 
 export type CryptoWalletAddress = typeof cryptoWalletAddresses.$inferSelect;
 export type InsertCryptoWalletAddress = z.infer<typeof insertCryptoWalletAddressSchema>;
+
+// PPV Content - tracks individual pay-per-view purchases
+export const ppvPurchases = pgTable("ppv_purchases", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  contentType: text("content_type").notNull(), // 'movie', 'series', 'episode', 'event'
+  contentId: integer("content_id").notNull(),
+  amount: doublePrecision("amount").notNull(),
+  currency: cryptoCurrencyEnum("currency").notNull(),
+  status: cryptoPaymentStatusEnum("status").default('pending').notNull(),
+  paymentId: integer("payment_id").references(() => cryptoPayments.id),
+  purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(), // When the PPV access expires
+  isActive: boolean("is_active").default(true).notNull(),
+});
+
+export const insertPPVPurchaseSchema = createInsertSchema(ppvPurchases).pick({
+  userId: true,
+  contentType: true,
+  contentId: true,
+  amount: true,
+  currency: true,
+  status: true,
+  paymentId: true,
+  expiresAt: true,
+  isActive: true,
+});
+
+export type PPVPurchase = typeof ppvPurchases.$inferSelect;
+export type InsertPPVPurchase = z.infer<typeof insertPPVPurchaseSchema>;
 
 // Export crypto payment types
 export type CryptoPayment = typeof cryptoPayments.$inferSelect;

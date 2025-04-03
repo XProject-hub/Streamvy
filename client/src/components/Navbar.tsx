@@ -16,7 +16,8 @@ export function Navbar() {
     { name: "Live TV", path: "/live-tv" },
     { name: "Movies", path: "/movies" },
     { name: "Series", path: "/series" },
-    { name: "Trending", path: "/trending" }
+    { name: "Premium", path: "/premium" },
+    { name: "Payments Demo", path: "/payment-methods-demo" }
   ];
 
   const handleSearch = (e: React.FormEvent) => {
