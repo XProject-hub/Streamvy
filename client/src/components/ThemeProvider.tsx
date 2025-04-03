@@ -36,6 +36,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   // Function to apply theme appearance to document root
   const applyAppearance = (appearance: ThemeAppearance) => {
+    // Log before change
+    console.log("Applying appearance:", appearance, "- Current classes:", document.documentElement.classList.toString());
+    
     // Add the class to the document element
     document.documentElement.classList.remove("light", "dark");
     document.documentElement.classList.add(appearance);
@@ -43,8 +46,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     // Update state
     setAppearance(appearance);
     
-    // Log theme change
-    console.log("Theme appearance applied:", appearance);
+    // Log after change
+    console.log("Theme appearance applied:", appearance, "- New classes:", document.documentElement.classList.toString());
   };
 
   // Function to change theme mode

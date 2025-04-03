@@ -9,9 +9,17 @@ export function ThemeToggle() {
   
   // Direct theme toggle for better debugging
   const toggleTheme = () => {
-    const newTheme = appearance === "light" ? "dark" : "light";
-    console.log("Toggling theme from", appearance, "to", newTheme);
-    setTheme(newTheme);
+    // If we're in system mode, first switch to explicit mode matching current appearance
+    if (mode === "system") {
+      const newTheme = appearance === "light" ? "dark" : "light";
+      console.log("Switching from system mode to explicit theme:", newTheme);
+      setTheme(newTheme);
+    } else {
+      // Normal toggle between light and dark
+      const newTheme = mode === "light" ? "dark" : "light";
+      console.log("Toggling theme from", mode, "to", newTheme);
+      setTheme(newTheme);
+    }
   };
 
   // Log current theme for debugging
@@ -29,7 +37,7 @@ export function ThemeToggle() {
       >
         {mode === 'system' ? (
           <Monitor className="h-4 w-4 text-blue-500" />
-        ) : appearance === "light" ? (
+        ) : mode === "light" ? (
           <Sun className="h-4 w-4 text-yellow-500" />
         ) : (
           <Moon className="h-4 w-4 text-indigo-500" />
