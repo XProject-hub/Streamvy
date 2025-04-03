@@ -164,41 +164,43 @@ export default function ChannelDetailPage() {
   };
 
   return (
-    <div className="container py-8">
-      <div className="mb-6">
-        <Button variant="outline" onClick={() => setLocation("/live-tv")}>
-          <ChevronLeft className="mr-2 h-4 w-4" /> Back to Live TV
-        </Button>
-      </div>
-      
-      {/* Channel header */}
-      <div className="flex items-center gap-4 mb-6">
-        {channel.logo && (
-          <img 
-            src={channel.logo} 
-            alt={channel.name} 
-            className="w-16 h-16 object-contain rounded-md"
-          />
-        )}
-        <div>
-          <h1 className="text-3xl font-bold">{channel.name}</h1>
-          <p className="text-gray-500 dark:text-gray-400">Live Channel</p>
-          {channel.status && (
-            <span className={`inline-block px-2 py-1 text-xs rounded mt-2 ${
-              channel.status === 'online' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-              channel.status === 'offline' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
-              'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-            }`}>
-              {channel.status === 'online' ? 'LIVE' : 
-               channel.status === 'offline' ? 'DOWN' : 'UNKNOWN'}
-            </span>
+    <div className="container py-8 flex flex-col items-center">
+      <div className="w-full max-w-5xl">
+        <div className="mb-6">
+          <Button variant="outline" onClick={() => setLocation("/live-tv")}>
+            <ChevronLeft className="mr-2 h-4 w-4" /> Back to Live TV
+          </Button>
+        </div>
+        
+        {/* Channel header - centered */}
+        <div className="flex items-center justify-center gap-4 mb-8">
+          {channel.logo && (
+            <img 
+              src={channel.logo} 
+              alt={channel.name} 
+              className="w-16 h-16 object-contain rounded-md"
+            />
           )}
+          <div>
+            <h1 className="text-3xl font-bold">{channel.name}</h1>
+            <p className="text-gray-500 dark:text-gray-400">Live Channel</p>
+            {channel.status && (
+              <span className={`inline-block px-2 py-1 text-xs rounded mt-2 ${
+                channel.status === 'online' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                channel.status === 'offline' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+              }`}>
+                {channel.status === 'online' ? 'LIVE' : 
+                 channel.status === 'offline' ? 'DOWN' : 'UNKNOWN'}
+              </span>
+            )}
+          </div>
         </div>
       </div>
       
-      {/* Video player - centered with max-width */}
-      <div className="flex justify-center mb-6">
-        <div className="relative bg-black w-full max-w-4xl aspect-video rounded-lg overflow-hidden shadow-lg">
+      {/* Video player - perfectly centered */}
+      <div className="w-full max-w-4xl mx-auto mb-6">
+        <div className="relative bg-black w-full aspect-video rounded-lg overflow-hidden shadow-lg">
           {hasError ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
               <div className="text-white mb-4">
@@ -225,9 +227,9 @@ export default function ChannelDetailPage() {
         </div>
       </div>
       
-      {/* Stream source indicators */}
+      {/* Stream source indicators - centered */}
       {streamSources.length > 1 && (
-        <div className="flex justify-center mb-6">
+        <div className="w-full max-w-4xl mx-auto mb-8 flex justify-center">
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
             <span>Stream sources:</span>
             <div className="flex gap-1">
@@ -247,9 +249,9 @@ export default function ChannelDetailPage() {
         </div>
       )}
       
-      {/* EPG Section */}
-      <div className="mt-8">
-        <h2 className="text-2xl font-bold mb-4">Program Guide</h2>
+      {/* EPG Section - centered */}
+      <div className="w-full max-w-4xl mx-auto mt-4">
+        <h2 className="text-2xl font-bold mb-4 text-center">Program Guide</h2>
         
         {programsLoading ? (
           <div className="flex justify-center p-8">
