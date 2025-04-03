@@ -3,13 +3,17 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 
-// Users table
+// Users table with premium fields
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   isAdmin: boolean("is_admin").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // Premium fields
+  isPremium: boolean("is_premium").default(false).notNull(),
+  premiumPlan: text("premium_plan"),
+  premiumExpiry: timestamp("premium_expiry"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -17,6 +21,40 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   isAdmin: true,
 });
+
+// Payment status and currency enums
+export const cryptoPaymentStatusEnum = pgEnum('crypto_payment_status', ['pending', 'completed', 'failed', 'expired']);
+export const cryptoCurrencyEnum = pgEnum('crypto_currency', ['BTC', 'USDT', 'LTC']);
+
+// Cryptocurrency payment table
+export const cryptoPayments = pgTable("crypto_payments", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  planName: text("plan_name").notNull(),
+  amount: doublePrecision("amount").notNull(),
+  currency: cryptoCurrencyEnum("currency").notNull(),
+  walletAddress: text("wallet_address").notNull(),
+  referenceId: text("reference_id").notNull(),
+  status: cryptoPaymentStatusEnum("status").default('pending').notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  expiresAt: timestamp("expires_at").notNull(),
+  transactionId: text("transaction_id"),
+});
+
+export const insertCryptoPaymentSchema = createInsertSchema(cryptoPayments).pick({
+  userId: true,
+  planName: true,
+  amount: true,
+  currency: true,
+  walletAddress: true,
+  referenceId: true,
+  status: true,
+  expiresAt: true,
+  transactionId: true,
+});
+
+// These type definitions will be consolidated at the end of the file
 
 // Categories table
 export const categories = pgTable("categories", {
@@ -294,15 +332,15 @@ export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;
 // Site Settings - global configuration options for the streaming platform
 export const siteSettings = pgTable("site_settings", {
   id: serial("id").primaryKey(),
-  siteName: text("site_name").default("StreamHive").notNull(),
-  logoUrl: text("logo_url"),
-  primaryColor: text("primary_color").default("#3b82f6").notNull(),
-  enableSubscriptions: boolean("enable_subscriptions").default(true).notNull(),
-  enablePPV: boolean("enable_ppv").default(false).notNull(),
-  enableRegistration: boolean("enable_registration").default(true).notNull(),
-  defaultUserQuota: integer("default_user_quota").default(5).notNull(), 
-  defaultUserConcurrentStreams: integer("default_user_concurrent_streams").default(2).notNull(),
-  lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+  siteName: text("siteName").default("StreamHive").notNull(),
+  logoUrl: text("logoUrl"),
+  primaryColor: text("primaryColor").default("#3b82f6").notNull(),
+  enableSubscriptions: boolean("enableSubscriptions").default(true).notNull(),
+  enablePPV: boolean("enablePPV").default(false).notNull(),
+  enableRegistration: boolean("enableRegistration").default(true).notNull(),
+  defaultUserQuota: integer("defaultUserQuota").default(5).notNull(), 
+  defaultUserConcurrentStreams: integer("defaultUserConcurrentStreams").default(2).notNull(),
+  lastUpdated: timestamp("lastUpdated").defaultNow().notNull(),
 });
 
 export const insertSiteSettingsSchema = createInsertSchema(siteSettings).pick({
@@ -377,51 +415,8 @@ export const extendedUsers = pgTable("users", {
   premiumExpiry: timestamp("premium_expiry"),
 });
 
-// Crypto Payment Status enum
-export const cryptoPaymentStatusEnum = pgEnum('crypto_payment_status', [
-  'pending',
-  'completed',
-  'expired',
-  'failed'
-]);
-
-// Crypto Currency enum
-export const cryptoCurrencyEnum = pgEnum('crypto_currency', [
-  'BTC',
-  'USDT',
-  'LTC'
-]);
-
-// Crypto Payments - tracks cryptocurrency payments
-export const cryptoPayments = pgTable("crypto_payments", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  planName: text("plan_name").notNull(),
-  amount: doublePrecision("amount").notNull(),
-  currency: cryptoCurrencyEnum("currency").notNull(),
-  walletAddress: text("wallet_address").notNull(),
-  referenceId: text("reference_id").notNull().unique(),
-  status: cryptoPaymentStatusEnum("status").default('pending').notNull(),
-  transactionId: text("transaction_id"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  completedAt: timestamp("completed_at"),
-  expiresAt: timestamp("expires_at").defaultNow().notNull(),
-});
-
-export const insertCryptoPaymentSchema = createInsertSchema(cryptoPayments).pick({
-  userId: true,
-  planName: true,
-  amount: true,
-  currency: true,
-  walletAddress: true,
-  referenceId: true,
-  status: true,
-  transactionId: true,
-  expiresAt: true,
-});
-
-export type CryptoPayment = typeof cryptoPayments.$inferSelect;
-export type InsertCryptoPayment = z.infer<typeof insertCryptoPaymentSchema>;
+// We already defined crypto payment tables above, so this section is removed
+// to avoid duplicate declarations
 
 // Crypto Wallet Addresses - tracks available wallet addresses for payments
 export const cryptoWalletAddresses = pgTable("crypto_wallet_addresses", {
@@ -442,3 +437,7 @@ export const insertCryptoWalletAddressSchema = createInsertSchema(cryptoWalletAd
 
 export type CryptoWalletAddress = typeof cryptoWalletAddresses.$inferSelect;
 export type InsertCryptoWalletAddress = z.infer<typeof insertCryptoWalletAddressSchema>;
+
+// Export crypto payment types
+export type CryptoPayment = typeof cryptoPayments.$inferSelect;
+export type InsertCryptoPayment = z.infer<typeof insertCryptoPaymentSchema>;
