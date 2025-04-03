@@ -67,7 +67,10 @@ export default function PremiumPage() {
             }`}
           >
             {plan.isPopular && (
-              <div className="absolute top-0 right-0 bg-primary text-white px-3 py-1 text-sm font-medium">
+              <div 
+                className="absolute top-0 right-0 px-3 py-1 text-sm font-medium"
+                style={{ backgroundColor: '#ff5500', color: '#ffffff' }}
+              >
                 Most Popular
               </div>
             )}
@@ -83,7 +86,7 @@ export default function PremiumPage() {
               <ul className="space-y-3">
                 {plan.features.map((feature, index) => (
                   <li key={index} className="flex items-center">
-                    <Check className="h-5 w-5 text-green-500 mr-2" />
+                    <Check className="h-5 w-5 mr-2" style={{ color: '#22c55e' }} />
                     <span>{feature}</span>
                   </li>
                 ))}
@@ -110,7 +113,7 @@ export default function PremiumPage() {
 
       <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
         <div className="flex items-center mb-4">
-          <Shield className="h-6 w-6 mr-2 text-primary" />
+          <Shield className="h-6 w-6 mr-2" style={{ color: '#ff5500' }} />
           <h2 className="text-xl font-semibold">Premium Benefits</h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6">
