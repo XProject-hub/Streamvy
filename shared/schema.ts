@@ -73,7 +73,7 @@ export const insertChannelSchema = createInsertSchema(channels).pick({
   lastChecked: true,
 });
 
-// Current program on each channel
+// EPG Programs - shows or events scheduled on channels
 export const programs = pgTable("programs", {
   id: serial("id").primaryKey(),
   channelId: integer("channel_id").references(() => channels.id).notNull(),
@@ -81,6 +81,17 @@ export const programs = pgTable("programs", {
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
   description: text("description"),
+  category: text("category"), // e.g., "Sports", "News", "Movie", "Series"
+  posterUrl: text("poster_url"), // Optional image for the program
+  episodeTitle: text("episode_title"), // For series episodes
+  season: integer("season"), // Season number for series
+  episode: integer("episode"), // Episode number for series
+  year: integer("year"), // Year of production
+  directors: jsonb("directors").default('[]'), // Array of director names
+  castMembers: jsonb("cast_members").default('[]'), // Array of cast member names
+  rating: text("rating"), // Content rating (e.g., "TV-MA", "PG-13")
+  isFeatured: boolean("is_featured").default(false), // Highlight special programs
+  externalId: text("external_id"), // ID from EPG source
 });
 
 export const insertProgramSchema = createInsertSchema(programs).pick({
@@ -89,6 +100,17 @@ export const insertProgramSchema = createInsertSchema(programs).pick({
   startTime: true,
   endTime: true,
   description: true,
+  category: true,
+  posterUrl: true,
+  episodeTitle: true,
+  season: true,
+  episode: true,
+  year: true,
+  directors: true,
+  castMembers: true,
+  rating: true,
+  isFeatured: true,
+  externalId: true,
 });
 
 // Movies table
@@ -293,3 +315,52 @@ export const insertSiteSettingsSchema = createInsertSchema(siteSettings).pick({
 
 export type SiteSettings = typeof siteSettings.$inferSelect;
 export type InsertSiteSettings = z.infer<typeof insertSiteSettingsSchema>;
+
+// EPG Channel Mapping - maps external EPG channel identifiers to our internal channels
+export const epgChannelMappings = pgTable("epg_channel_mappings", {
+  id: serial("id").primaryKey(),
+  channelId: integer("channel_id").references(() => channels.id).notNull(),
+  epgSourceId: integer("epg_source_id").references(() => epgSources.id).notNull(),
+  externalChannelId: text("external_channel_id").notNull(), // ID used in the EPG source
+  externalChannelName: text("external_channel_name").notNull(), // Name in the EPG source
+  isActive: boolean("is_active").default(true).notNull(),
+  lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+});
+
+export const insertEPGChannelMappingSchema = createInsertSchema(epgChannelMappings).pick({
+  channelId: true,
+  epgSourceId: true,
+  externalChannelId: true,
+  externalChannelName: true,
+  isActive: true,
+});
+
+export type EPGChannelMapping = typeof epgChannelMappings.$inferSelect;
+export type InsertEPGChannelMapping = z.infer<typeof insertEPGChannelMappingSchema>;
+
+// EPG Import Jobs - tracks the status of EPG data imports
+export const epgImportJobs = pgTable("epg_import_jobs", {
+  id: serial("id").primaryKey(),
+  epgSourceId: integer("epg_source_id").references(() => epgSources.id).notNull(),
+  startTime: timestamp("start_time").defaultNow().notNull(),
+  endTime: timestamp("end_time"),
+  status: text("status").default("pending").notNull(), // 'pending', 'processing', 'completed', 'failed'
+  programsImported: integer("programs_imported").default(0),
+  channelsImported: integer("channels_imported").default(0),
+  errors: jsonb("errors").default('[]'), // Array of error messages
+  logDetails: text("log_details"), // Detailed log information
+});
+
+export const insertEPGImportJobSchema = createInsertSchema(epgImportJobs).pick({
+  epgSourceId: true,
+  startTime: true,
+  endTime: true,
+  status: true,
+  programsImported: true,
+  channelsImported: true,
+  errors: true,
+  logDetails: true,
+});
+
+export type EPGImportJob = typeof epgImportJobs.$inferSelect;
+export type InsertEPGImportJob = z.infer<typeof insertEPGImportJobSchema>;
