@@ -47,7 +47,7 @@ export default function PremiumPage() {
   };
 
   return (
-    <div className="container py-10 max-w-6xl">
+    <div className="container py-10 max-w-6xl mx-auto">
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold mb-4">Upgrade Your Streaming Experience</h1>
         <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
@@ -56,7 +56,7 @@ export default function PremiumPage() {
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8 mb-12">
+      <div className="grid md:grid-cols-2 gap-8 mb-12 mx-auto max-w-4xl">
         {plans.map((plan) => (
           <Card 
             key={plan.name}
