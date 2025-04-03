@@ -4,6 +4,7 @@ import { z } from "zod";
 import { setupAuth } from "./auth";
 import { storage, MemStorage } from "./storage";
 import { epgService } from "./epg-service";
+import cryptoPaymentsRoutes from "./routes/crypto-payments";
 import axios from "axios";
 import {
   insertCategorySchema,
@@ -1220,6 +1221,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to update site settings" });
     }
   });
+
+  // Register crypto payment routes
+  app.use('/api/crypto-payments', cryptoPaymentsRoutes);
 
   const httpServer = createServer(app);
   return httpServer;

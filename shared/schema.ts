@@ -1,6 +1,7 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, doublePrecision, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 
 // Users table
 export const users = pgTable("users", {
@@ -366,3 +367,78 @@ export const insertEPGImportJobSchema = createInsertSchema(epgImportJobs).pick({
 
 export type EPGImportJob = typeof epgImportJobs.$inferSelect;
 export type InsertEPGImportJob = z.infer<typeof insertEPGImportJobSchema>;
+
+// Extend users table with premium fields
+// Extended users for premium features - adds columns to the users table
+export const extendedUsers = pgTable("users", {
+  id: serial("id").primaryKey(),  // Required for updates, matching the primary key of users
+  isPremium: boolean("is_premium").default(false),
+  premiumPlan: text("premium_plan"),
+  premiumExpiry: timestamp("premium_expiry"),
+});
+
+// Crypto Payment Status enum
+export const cryptoPaymentStatusEnum = pgEnum('crypto_payment_status', [
+  'pending',
+  'completed',
+  'expired',
+  'failed'
+]);
+
+// Crypto Currency enum
+export const cryptoCurrencyEnum = pgEnum('crypto_currency', [
+  'BTC',
+  'USDT',
+  'LTC'
+]);
+
+// Crypto Payments - tracks cryptocurrency payments
+export const cryptoPayments = pgTable("crypto_payments", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  planName: text("plan_name").notNull(),
+  amount: doublePrecision("amount").notNull(),
+  currency: cryptoCurrencyEnum("currency").notNull(),
+  walletAddress: text("wallet_address").notNull(),
+  referenceId: text("reference_id").notNull().unique(),
+  status: cryptoPaymentStatusEnum("status").default('pending').notNull(),
+  transactionId: text("transaction_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  expiresAt: timestamp("expires_at").defaultNow().notNull(),
+});
+
+export const insertCryptoPaymentSchema = createInsertSchema(cryptoPayments).pick({
+  userId: true,
+  planName: true,
+  amount: true,
+  currency: true,
+  walletAddress: true,
+  referenceId: true,
+  status: true,
+  transactionId: true,
+  expiresAt: true,
+});
+
+export type CryptoPayment = typeof cryptoPayments.$inferSelect;
+export type InsertCryptoPayment = z.infer<typeof insertCryptoPaymentSchema>;
+
+// Crypto Wallet Addresses - tracks available wallet addresses for payments
+export const cryptoWalletAddresses = pgTable("crypto_wallet_addresses", {
+  id: serial("id").primaryKey(),
+  address: text("address").notNull().unique(),
+  currency: cryptoCurrencyEnum("currency").notNull(),
+  label: text("label"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertCryptoWalletAddressSchema = createInsertSchema(cryptoWalletAddresses).pick({
+  address: true,
+  currency: true,
+  label: true,
+  isActive: true,
+});
+
+export type CryptoWalletAddress = typeof cryptoWalletAddresses.$inferSelect;
+export type InsertCryptoWalletAddress = z.infer<typeof insertCryptoWalletAddressSchema>;

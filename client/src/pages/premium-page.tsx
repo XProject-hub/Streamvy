@@ -4,7 +4,7 @@ import { Check, Shield, Bitcoin } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { CryptoPaymentModal } from "@/components/CryptoPaymentModal";
+import CryptoPaymentModal from "@/components/CryptoPaymentModal";
 
 const plans = [
   {
@@ -192,7 +192,14 @@ export default function PremiumPage() {
           isOpen={showCryptoModal}
           onClose={() => setShowCryptoModal(false)}
           planName={selectedPlan.name}
-          planPrice={selectedPlan.price}
+          amount={parseFloat(selectedPlan.price.replace('$', ''))}
+          onSuccess={() => {
+            toast({
+              title: "Subscription activated",
+              description: `Your ${selectedPlan.name} plan is now active.`,
+              variant: "default",
+            });
+          }}
         />
       )}
     </div>

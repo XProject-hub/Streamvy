@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startStreamChecker } from "./stream-checker";
+import { cryptoPaymentService } from "./crypto-payment-service";
 
 const app = express();
 app.use(express.json());
@@ -70,5 +71,8 @@ app.use((req, res, next) => {
     
     // Start the stream checker to periodically verify channel streams
     startStreamChecker();
+    
+    // Start automatic crypto payment verification service
+    cryptoPaymentService.startAutomaticVerification(15); // Check every 15 minutes
   });
 })();

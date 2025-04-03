@@ -11,6 +11,8 @@ import {
   watchHistory, WatchHistory, InsertWatchHistory,
   userPreferences, UserPreferences, InsertUserPreferences,
   siteSettings, SiteSettings, InsertSiteSettings,
+  cryptoPayments, CryptoPayment, InsertCryptoPayment,
+  cryptoWalletAddresses, CryptoWalletAddress, InsertCryptoWalletAddress,
   StreamSource
 } from "@shared/schema";
 import { and, eq, ne, lte, gte, count, desc, asc, sql } from "drizzle-orm";
@@ -128,6 +130,16 @@ export interface IStorage {
   getSiteSettings(): Promise<SiteSettings | undefined>;
   updateSiteSettings(settings: Partial<InsertSiteSettings>): Promise<SiteSettings>;
   
+  // Crypto Payment operations
+  getCryptoPayment(id: number): Promise<CryptoPayment | undefined>;
+  getCryptoPaymentsByUserId(userId: number): Promise<CryptoPayment[]>;
+  createCryptoPayment(payment: InsertCryptoPayment): Promise<CryptoPayment>;
+  updateCryptoPayment(id: number, payment: Partial<CryptoPayment>): Promise<CryptoPayment | undefined>;
+  getPendingCryptoPayments(): Promise<CryptoPayment[]>;
+  
+  // User subscription operations
+  updateUserSubscription(userId: number, subscription: { isPremium: boolean; premiumTier?: string; premiumExpiresAt?: Date }): Promise<User>;
+  
   // Session store
   sessionStore: SessionStore;
 }
@@ -147,6 +159,8 @@ export class MemStorage implements IStorage {
   private watchHistoryRecords: Map<number, WatchHistory>;
   private userPreferencesRecords: Map<number, UserPreferences>;
   private siteSettingsRecord: SiteSettings | undefined;
+  private cryptoPayments: Map<number, CryptoPayment>;
+  private cryptoWalletAddresses: Map<number, CryptoWalletAddress>;
   
   // Counters for IDs
   private userCounter: number;
@@ -160,6 +174,8 @@ export class MemStorage implements IStorage {
   private epgSourceCounter: number;
   private watchHistoryCounter: number;
   private userPreferencesCounter: number;
+  private cryptoPaymentCounter: number;
+  private cryptoWalletAddressCounter: number;
   
   // Session store
   public sessionStore: SessionStore;
@@ -176,6 +192,8 @@ export class MemStorage implements IStorage {
     this.epgSources = new Map();
     this.watchHistoryRecords = new Map();
     this.userPreferencesRecords = new Map();
+    this.cryptoPayments = new Map();
+    this.cryptoWalletAddresses = new Map();
     
     this.userCounter = 1;
     this.categoryCounter = 1;
@@ -188,6 +206,8 @@ export class MemStorage implements IStorage {
     this.epgSourceCounter = 1;
     this.watchHistoryCounter = 1;
     this.userPreferencesCounter = 1;
+    this.cryptoPaymentCounter = 1;
+    this.cryptoWalletAddressCounter = 1;
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // Clear expired sessions once a day
@@ -938,6 +958,68 @@ export class MemStorage implements IStorage {
     }
     
     return this.siteSettingsRecord;
+  }
+  
+  // Crypto Payment operations
+  async getCryptoPayment(id: number): Promise<CryptoPayment | undefined> {
+    return this.cryptoPayments.get(id);
+  }
+  
+  async getCryptoPaymentsByUserId(userId: number): Promise<CryptoPayment[]> {
+    return Array.from(this.cryptoPayments.values()).filter(
+      payment => payment.userId === userId
+    );
+  }
+  
+  async createCryptoPayment(payment: InsertCryptoPayment): Promise<CryptoPayment> {
+    const id = this.cryptoPaymentCounter++;
+    const now = new Date();
+    const newPayment: CryptoPayment = {
+      ...payment,
+      id,
+      createdAt: now,
+      completedAt: null,
+      status: payment.status || 'pending',
+      transactionId: payment.transactionId || null,
+      // Make sure expiresAt is always defined
+      expiresAt: payment.expiresAt || new Date(now.getTime() + 24 * 60 * 60 * 1000) // Default 24 hours expiry
+    };
+    this.cryptoPayments.set(id, newPayment);
+    return newPayment;
+  }
+  
+  async updateCryptoPayment(id: number, paymentUpdate: Partial<CryptoPayment>): Promise<CryptoPayment | undefined> {
+    const payment = this.cryptoPayments.get(id);
+    if (!payment) return undefined;
+    
+    const updatedPayment: CryptoPayment = { ...payment, ...paymentUpdate };
+    this.cryptoPayments.set(id, updatedPayment);
+    return updatedPayment;
+  }
+  
+  async getPendingCryptoPayments(): Promise<CryptoPayment[]> {
+    return Array.from(this.cryptoPayments.values()).filter(
+      payment => payment.status === 'pending' && payment.expiresAt > new Date()
+    );
+  }
+  
+  // User subscription operations
+  async updateUserSubscription(userId: number, subscription: { isPremium: boolean; premiumTier?: string; premiumExpiresAt?: Date }): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+    
+    // Update user with premium subscription details
+    const updatedUser = {
+      ...user,
+      isPremium: subscription.isPremium,
+      premiumPlan: subscription.premiumTier || null,
+      premiumExpiry: subscription.premiumExpiresAt || null
+    };
+    
+    this.users.set(userId, updatedUser);
+    return updatedUser;
   }
   
   private initializeSampleData() {
@@ -2332,6 +2414,79 @@ export class DatabaseStorage implements IStorage {
       .delete(epgImportJobs)
       .where(eq(epgImportJobs.id, id));
     return result.rowCount > 0;
+  }
+  
+  // Crypto Payment operations
+  async getCryptoPayment(id: number): Promise<CryptoPayment | undefined> {
+    const [payment] = await db
+      .select()
+      .from(cryptoPayments)
+      .where(eq(cryptoPayments.id, id));
+    return payment;
+  }
+  
+  async getCryptoPaymentsByUserId(userId: number): Promise<CryptoPayment[]> {
+    return await db
+      .select()
+      .from(cryptoPayments)
+      .where(eq(cryptoPayments.userId, userId));
+  }
+  
+  async createCryptoPayment(payment: InsertCryptoPayment): Promise<CryptoPayment> {
+    const [newPayment] = await db
+      .insert(cryptoPayments)
+      .values(payment)
+      .returning();
+    return newPayment;
+  }
+  
+  async updateCryptoPayment(id: number, paymentUpdate: Partial<CryptoPayment>): Promise<CryptoPayment | undefined> {
+    const [updatedPayment] = await db
+      .update(cryptoPayments)
+      .set(paymentUpdate)
+      .where(eq(cryptoPayments.id, id))
+      .returning();
+    return updatedPayment;
+  }
+  
+  async getPendingCryptoPayments(): Promise<CryptoPayment[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(cryptoPayments)
+      .where(
+        and(
+          eq(cryptoPayments.status, 'pending'),
+          gte(cryptoPayments.expiresAt, now)
+        )
+      );
+  }
+  
+  // User subscription operations
+  async updateUserSubscription(userId: number, subscription: { isPremium: boolean; premiumTier?: string; premiumExpiresAt?: Date }): Promise<User> {
+    // Get the user first to confirm it exists
+    const user = await this.getUser(userId);
+    if (!user) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+    
+    // Use a direct SQL query as a workaround for updating custom fields
+    await db.execute(sql`
+      UPDATE users 
+      SET 
+        is_premium = ${subscription.isPremium}, 
+        premium_plan = ${subscription.premiumTier || null}, 
+        premium_expiry = ${subscription.premiumExpiresAt || null}
+      WHERE id = ${userId}
+    `);
+    
+    // Get the updated user
+    const updatedUser = await this.getUser(userId);
+    if (!updatedUser) {
+      throw new Error(`User with ID ${userId} not found after update`);
+    }
+    
+    return updatedUser;
   }
 }
 

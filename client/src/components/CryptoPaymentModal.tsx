@@ -1,162 +1,296 @@
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Copy, Check } from "lucide-react";
-import { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Check, Copy, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { queryClient, apiRequest } from '@/lib/queryClient';
+import { CardContent, Card } from '@/components/ui/card';
+import { QRCodeSVG } from 'qrcode.react';
 
-type CryptoPaymentModalProps = {
+type CryptoCurrency = 'BTC' | 'USDT' | 'LTC';
+
+interface CryptoPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   planName: string;
-  planPrice: string;
-};
+  amount: number;
+  onSuccess?: () => void;
+}
 
-type CryptoOption = {
-  name: string;
-  symbol: string;
-  address: string;
-  icon: React.ReactNode;
-};
-
-export function CryptoPaymentModal({
+const CryptoPaymentModal: React.FC<CryptoPaymentModalProps> = ({
   isOpen,
   onClose,
   planName,
-  planPrice,
-}: CryptoPaymentModalProps) {
-  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  amount,
+  onSuccess
+}) => {
+  const [currency, setCurrency] = useState<CryptoCurrency>('BTC');
+  const [paymentId, setPaymentId] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
 
-  const cryptoOptions: CryptoOption[] = [
-    {
-      name: "Bitcoin",
-      symbol: "BTC",
-      address: "bc1qmk3rumwu0h30ryz5ezg6d0nalflq6lfpw0y6me",
-      icon: (
-        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M23.6408 14.9193L20.1602 19.9396C19.5509 20.7969 18.6402 21.3339 17.6518 21.4262L7.5501 22.5687C6.82178 22.6379 6.10486 22.4522 5.49624 22.0518L5.49612 22.0517C4.82178 21.6088 4.42663 20.8806 4.37505 20.0934L3.59593 10.1597C3.52866 9.16716 3.98531 8.22255 4.7893 7.6056L12.8174 1.50454C14.6662 0.122188 17.2494 0.725922 18.2943 2.71072L21.7752 9.35102C22.5221 10.7408 22.1031 12.4929 21.0458 13.4797L14.6083 19.5168C14.1818 19.9158 13.53 19.9077 13.1232 19.5009C12.7011 19.0787 12.6793 18.4021 13.0737 17.9544L18.3161 12.0864" stroke="#F7931A" strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M16.8733 8.30664L14.3959 8.30664C13.8436 8.30664 13.3959 8.75436 13.3959 9.30664V11.784C13.3959 12.3363 13.8436 12.784 14.3959 12.784H16.8733C17.4256 12.784 17.8733 12.3363 17.8733 11.784V9.30664C17.8733 8.75436 17.4256 8.30664 16.8733 8.30664Z" stroke="#F7931A" strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      ),
+  // Create a payment request
+  const { mutate: createPayment, isPending, isError, error } = useMutation({
+    mutationFn: async (data: { planName: string; amount: number; currency: CryptoCurrency }) => {
+      const res = await apiRequest('POST', '/api/crypto-payments/request', data);
+      return res.json();
     },
-    {
-      name: "USDT (Tether)",
-      symbol: "USDT",
-      address: "3CSixKXwNbq3Wccve687QHff7p1x3ihthF",
-      icon: (
-        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="#26A17B" strokeWidth="1.5" strokeMiterlimit="10"/>
-          <path d="M12 6V17" stroke="#26A17B" strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round"/>
-          <path d="M17 10H7" stroke="#26A17B" strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round"/>
-          <path d="M16 13H8" stroke="#26A17B" strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round"/>
-        </svg>
-      ),
+    onSuccess: (data) => {
+      setPaymentId(data.paymentId);
     },
-    {
-      name: "Litecoin",
-      symbol: "LTC",
-      address: "LgmRXe3R2drqrv1PKV7TB7Af4LfK7G71tw",
-      icon: (
-        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="#345D9D" strokeWidth="1.5" strokeMiterlimit="10"/>
-          <path d="M8.5 16.5H14.5" stroke="#345D9D" strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round"/>
-          <path d="M12.5 7.5L9.5 16.5" stroke="#345D9D" strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round"/>
-          <path d="M14 12L16 7.5" stroke="#345D9D" strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round"/>
-        </svg>
-      ),
+    onError: (error: Error) => {
+      toast({
+        title: "Payment request failed",
+        description: error.message,
+        variant: "destructive",
+      });
     },
-  ];
+  });
 
-  const copyToClipboard = (address: string) => {
-    navigator.clipboard.writeText(address);
-    setCopiedAddress(address);
-    setTimeout(() => {
-      setCopiedAddress(null);
-    }, 3000);
+  // Define payment status type
+  interface PaymentStatus {
+    verified: boolean;
+  }
+
+  // Check payment status
+  const { data: paymentStatus, refetch } = useQuery<PaymentStatus>({
+    queryKey: ['/api/crypto-payments/status', paymentId],
+    queryFn: async () => {
+      if (!paymentId) return { verified: false };
+      const res = await apiRequest('GET', `/api/crypto-payments/status/${paymentId}`);
+      return res.json();
+    },
+    enabled: !!paymentId,
+    refetchInterval: (data) => !data?.verified ? 10000 : false, // Poll every 10 seconds until verified
+  });
+
+  // Handle currency selection
+  const handleCurrencySelect = (selected: CryptoCurrency) => {
+    setCurrency(selected);
+    // Reset payment state if currency changes
+    setPaymentId(null);
   };
 
+  // Handle copy to clipboard
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: "Copied to clipboard",
+        description: "The wallet address has been copied to your clipboard",
+      });
+    });
+  };
+
+  // Start payment process
+  const startPayment = () => {
+    createPayment({ planName, amount, currency });
+  };
+
+  // Check if payment is verified
+  React.useEffect(() => {
+    if (paymentStatus?.verified) {
+      toast({
+        title: "Payment verified!",
+        description: "Your payment has been confirmed and your subscription is now active.",
+        variant: "default",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      if (onSuccess) onSuccess();
+      onClose();
+    }
+  }, [paymentStatus, toast, onClose, onSuccess]);
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Pay with Cryptocurrency</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">Cryptocurrency Payment</DialogTitle>
           <DialogDescription>
-            Subscribe to {planName} ({planPrice}) using cryptocurrency
+            Pay with cryptocurrency to activate your {planName} plan
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="BTC" className="w-full">
-          <TabsList className="grid grid-cols-3 w-full">
-            {cryptoOptions.map((option) => (
-              <TabsTrigger key={option.symbol} value={option.symbol}>
-                <div className="flex items-center space-x-2">
-                  {option.icon}
-                  <span>{option.symbol}</span>
-                </div>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        {!paymentId ? (
+          // Step 1: Select cryptocurrency
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Amount: <span className="font-semibold">${amount.toFixed(2)} USD</span>
+            </p>
+            <div className="flex flex-col space-y-2">
+              <Label htmlFor="currency">Select cryptocurrency:</Label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={currency === 'BTC' ? 'default' : 'outline'}
+                  onClick={() => handleCurrencySelect('BTC')}
+                  className="flex-1"
+                >
+                  Bitcoin (BTC)
+                </Button>
+                <Button
+                  variant={currency === 'USDT' ? 'default' : 'outline'}
+                  onClick={() => handleCurrencySelect('USDT')}
+                  className="flex-1"
+                >
+                  Tether (USDT)
+                </Button>
+                <Button
+                  variant={currency === 'LTC' ? 'default' : 'outline'}
+                  onClick={() => handleCurrencySelect('LTC')}
+                  className="flex-1"
+                >
+                  Litecoin (LTC)
+                </Button>
+              </div>
+            </div>
 
-          {cryptoOptions.map((option) => (
-            <TabsContent
-              key={option.symbol}
-              value={option.symbol}
-              className="mt-4 border rounded-lg p-4"
-            >
-              <div className="flex flex-col space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-medium">{option.name} Address</h3>
-                  <div className="flex items-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => copyToClipboard(option.address)}
-                      className="flex items-center space-x-1"
-                    >
-                      {copiedAddress === option.address ? (
-                        <Check className="h-4 w-4" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                      <span>{copiedAddress === option.address ? "Copied" : "Copy"}</span>
-                    </Button>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                You're about to pay approximately:
+              </p>
+              <div className="text-lg font-semibold">
+                {currency === 'BTC' && `≈ ${(amount / 70000).toFixed(6)} BTC`}
+                {currency === 'USDT' && `≈ ${amount.toFixed(2)} USDT`}
+                {currency === 'LTC' && `≈ ${(amount / 85).toFixed(4)} LTC`}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                The exact amount will be calculated when you proceed.
+              </p>
+            </div>
+          </div>
+        ) : (
+          // Step 2: Show payment details
+          <div className="space-y-6 py-4">
+            {paymentStatus?.verified ? (
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <div className="rounded-full bg-green-100 p-3 dark:bg-green-900">
+                  <Check className="h-8 w-8 text-green-600 dark:text-green-300" />
+                </div>
+                <p className="text-center text-lg font-medium">Payment confirmed!</p>
+                <p className="text-center text-sm text-muted-foreground">
+                  Your {planName} plan is now active.
+                </p>
+              </div>
+            ) : (
+              <>
+                <Card className="overflow-hidden">
+                  <CardContent className="p-6 flex items-center justify-center">
+                    <QRCodeSVG
+                      value={`${currency.toLowerCase()}:${paymentId}`}
+                      size={200}
+                      includeMargin
+                      className="mx-auto"
+                    />
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="wallet-address">Send exactly:</Label>
+                    <div className="font-mono text-sm p-2 bg-muted rounded-md">
+                      {currency === 'BTC' && `${(amount / 70000).toFixed(6)} BTC`}
+                      {currency === 'USDT' && `${amount.toFixed(2)} USDT`}
+                      {currency === 'LTC' && `${(amount / 85).toFixed(4)} LTC`}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="wallet-address">Wallet address:</Label>
+                    <div className="relative">
+                      <Input
+                        id="wallet-address"
+                        readOnly
+                        value={
+                          currency === 'BTC'
+                            ? 'bc1qmk3rumwu0h30ryz5ezg6d0nalflq6lfpw0y6me'
+                            : currency === 'USDT'
+                            ? '3CSixKXwNbq3Wccve687QHff7p1x3ihthF'
+                            : 'LgmRXe3R2drqrv1PKV7TB7Af4LfK7G71tw'
+                        }
+                        className="pr-10 font-mono"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() =>
+                          copyToClipboard(
+                            currency === 'BTC'
+                              ? 'bc1qmk3rumwu0h30ryz5ezg6d0nalflq6lfpw0y6me'
+                              : currency === 'USDT'
+                              ? '3CSixKXwNbq3Wccve687QHff7p1x3ihthF'
+                              : 'LgmRXe3R2drqrv1PKV7TB7Af4LfK7G71tw'
+                          )
+                        }
+                      >
+                        {copied ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Status:</Label>
+                    <div className="flex items-center space-x-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Waiting for payment confirmation...</span>
+                    </div>
+                  </div>
+
+                  <div className="text-sm text-muted-foreground">
+                    <p>
+                      Your subscription will be activated automatically once your payment is
+                      confirmed on the blockchain.
+                    </p>
+                    <p className="mt-2">
+                      This usually takes between 10-30 minutes depending on network congestion.
+                    </p>
                   </div>
                 </div>
-                <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-md font-mono text-sm break-all overflow-x-auto">
-                  {option.address}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  <p>1. Copy the address above</p>
-                  <p>2. Send exactly the equivalent of {planPrice} in {option.symbol}</p>
-                  <p>3. Your account will be upgraded once the transaction is confirmed</p>
-                </div>
-              </div>
-            </TabsContent>
-          ))}
-        </Tabs>
+              </>
+            )}
+          </div>
+        )}
 
-        <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            style={{ backgroundColor: '#ff5500', color: '#ffffff' }}
-            onClick={() => {
-              onClose();
-              // Here you would typically confirm payment or redirect to a confirmation page
-              alert("Thank you for your payment! Please check your email for confirmation once your transaction is processed.");
-            }}
-          >
-            I've Made The Payment
-          </Button>
+        <DialogFooter>
+          {!paymentId ? (
+            <Button onClick={startPayment} disabled={isPending}>
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Proceed to Payment'
+              )}
+            </Button>
+          ) : !paymentStatus?.verified ? (
+            <Button variant="outline" onClick={() => refetch()}>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Check Payment Status
+            </Button>
+          ) : (
+            <Button onClick={onClose}>Close</Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-}
+};
+
+export default CryptoPaymentModal;
