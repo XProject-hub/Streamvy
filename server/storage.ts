@@ -679,6 +679,7 @@ export class MemStorage implements IStorage {
   
   async deleteEPGImportJob(id: number): Promise<boolean> {
     return this.epgImportJobs.delete(id);
+  }
   
   // Watch History operations
   async getUserWatchHistory(userId: number): Promise<WatchHistory[]> {
