@@ -23,10 +23,12 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { PremiumBanner } from "@/components/PremiumBanner";
 
 function Router() {
   return (
     <div className="flex flex-col min-h-screen">
+      <PremiumBanner />
       <Navbar />
       <main className="flex-grow bg-gray-100 dark:bg-gray-900">
         <Switch>
