@@ -97,6 +97,21 @@ export interface IStorage {
   deleteEPGSource(id: number): Promise<boolean>;
   refreshEPGSource(id: number): Promise<EPGSource | undefined>;
   
+  // EPG Channel Mappings
+  getEPGChannelMappings(epgSourceId?: number): Promise<EPGChannelMapping[]>;
+  getEPGChannelMapping(id: number): Promise<EPGChannelMapping | undefined>;
+  getChannelEPGMapping(channelId: number, epgSourceId: number): Promise<EPGChannelMapping | undefined>;
+  createEPGChannelMapping(mapping: InsertEPGChannelMapping): Promise<EPGChannelMapping>;
+  updateEPGChannelMapping(id: number, mapping: Partial<InsertEPGChannelMapping>): Promise<EPGChannelMapping | undefined>;
+  deleteEPGChannelMapping(id: number): Promise<boolean>;
+  
+  // EPG Import Jobs
+  getEPGImportJobs(epgSourceId?: number): Promise<EPGImportJob[]>;
+  getEPGImportJob(id: number): Promise<EPGImportJob | undefined>;
+  createEPGImportJob(job: InsertEPGImportJob): Promise<EPGImportJob>;
+  updateEPGImportJob(id: number, job: Partial<InsertEPGImportJob>): Promise<EPGImportJob | undefined>;
+  deleteEPGImportJob(id: number): Promise<boolean>;
+  
   // Watch History operations
   getUserWatchHistory(userId: number): Promise<WatchHistory[]>;
   getWatchHistory(id: number): Promise<WatchHistory | undefined>;
@@ -560,15 +575,110 @@ export class MemStorage implements IStorage {
     const source = this.epgSources.get(id);
     if (!source) return undefined;
     
-    // In a real implementation, this would fetch and parse the EPG XML
-    // For now, just update the lastUpdate timestamp
-    const updatedSource: EPGSource = {
-      ...source,
-      lastUpdate: new Date()
+    // In a real implementation, this would fetch fresh EPG data
+    const updatedSource: EPGSource = { 
+      ...source, 
+      lastUpdate: new Date() 
     };
     this.epgSources.set(id, updatedSource);
     return updatedSource;
   }
+  
+  // EPG Channel Mapping operations
+  private epgChannelMappings: Map<number, EPGChannelMapping> = new Map();
+  private epgChannelMappingCounter: number = 1;
+  
+  async getEPGChannelMappings(epgSourceId?: number): Promise<EPGChannelMapping[]> {
+    const allMappings = Array.from(this.epgChannelMappings.values());
+    if (epgSourceId !== undefined) {
+      return allMappings.filter(mapping => mapping.epgSourceId === epgSourceId);
+    }
+    return allMappings;
+  }
+  
+  async getEPGChannelMapping(id: number): Promise<EPGChannelMapping | undefined> {
+    return this.epgChannelMappings.get(id);
+  }
+  
+  async getChannelEPGMapping(channelId: number, epgSourceId: number): Promise<EPGChannelMapping | undefined> {
+    return Array.from(this.epgChannelMappings.values()).find(
+      mapping => mapping.channelId === channelId && mapping.epgSourceId === epgSourceId
+    );
+  }
+  
+  async createEPGChannelMapping(mapping: InsertEPGChannelMapping): Promise<EPGChannelMapping> {
+    const id = this.epgChannelMappingCounter++;
+    const now = new Date();
+    const newMapping: EPGChannelMapping = {
+      ...mapping,
+      id,
+      lastUpdated: now
+    };
+    this.epgChannelMappings.set(id, newMapping);
+    return newMapping;
+  }
+  
+  async updateEPGChannelMapping(id: number, mappingUpdate: Partial<InsertEPGChannelMapping>): Promise<EPGChannelMapping | undefined> {
+    const mapping = this.epgChannelMappings.get(id);
+    if (!mapping) return undefined;
+    
+    const updatedMapping: EPGChannelMapping = { 
+      ...mapping, 
+      ...mappingUpdate,
+      lastUpdated: new Date()
+    };
+    this.epgChannelMappings.set(id, updatedMapping);
+    return updatedMapping;
+  }
+  
+  async deleteEPGChannelMapping(id: number): Promise<boolean> {
+    return this.epgChannelMappings.delete(id);
+  }
+  
+  // EPG Import Job operations
+  private epgImportJobs: Map<number, EPGImportJob> = new Map();
+  private epgImportJobCounter: number = 1;
+  
+  async getEPGImportJobs(epgSourceId?: number): Promise<EPGImportJob[]> {
+    const allJobs = Array.from(this.epgImportJobs.values())
+      .sort((a, b) => b.startTime.getTime() - a.startTime.getTime()); // Most recent first
+    
+    if (epgSourceId !== undefined) {
+      return allJobs.filter(job => job.epgSourceId === epgSourceId);
+    }
+    return allJobs;
+  }
+  
+  async getEPGImportJob(id: number): Promise<EPGImportJob | undefined> {
+    return this.epgImportJobs.get(id);
+  }
+  
+  async createEPGImportJob(job: InsertEPGImportJob): Promise<EPGImportJob> {
+    const id = this.epgImportJobCounter++;
+    const newJob: EPGImportJob = {
+      ...job,
+      id,
+      status: job.status || 'pending',
+      programsImported: job.programsImported || 0,
+      channelsImported: job.channelsImported || 0,
+      errors: job.errors || [],
+      logDetails: job.logDetails || null
+    };
+    this.epgImportJobs.set(id, newJob);
+    return newJob;
+  }
+  
+  async updateEPGImportJob(id: number, jobUpdate: Partial<InsertEPGImportJob>): Promise<EPGImportJob | undefined> {
+    const job = this.epgImportJobs.get(id);
+    if (!job) return undefined;
+    
+    const updatedJob: EPGImportJob = { ...job, ...jobUpdate };
+    this.epgImportJobs.set(id, updatedJob);
+    return updatedJob;
+  }
+  
+  async deleteEPGImportJob(id: number): Promise<boolean> {
+    return this.epgImportJobs.delete(id);
   
   // Watch History operations
   async getUserWatchHistory(userId: number): Promise<WatchHistory[]> {
@@ -2127,6 +2237,100 @@ export class DatabaseStorage implements IStorage {
       .where(eq(epgSources.id, id))
       .returning();
     return updatedSource;
+  }
+
+  // EPG Channel Mapping operations
+  async getEPGChannelMappings(epgSourceId?: number): Promise<EPGChannelMapping[]> {
+    if (epgSourceId) {
+      return db.select().from(epgChannelMappings).where(eq(epgChannelMappings.epgSourceId, epgSourceId));
+    }
+    return db.select().from(epgChannelMappings);
+  }
+
+  async getEPGChannelMapping(id: number): Promise<EPGChannelMapping | undefined> {
+    const [mapping] = await db.select().from(epgChannelMappings).where(eq(epgChannelMappings.id, id));
+    return mapping;
+  }
+
+  async getChannelEPGMapping(channelId: number, epgSourceId: number): Promise<EPGChannelMapping | undefined> {
+    const [mapping] = await db
+      .select()
+      .from(epgChannelMappings)
+      .where(
+        and(
+          eq(epgChannelMappings.channelId, channelId),
+          eq(epgChannelMappings.epgSourceId, epgSourceId)
+        )
+      );
+    return mapping;
+  }
+
+  async createEPGChannelMapping(mapping: InsertEPGChannelMapping): Promise<EPGChannelMapping> {
+    const [newMapping] = await db
+      .insert(epgChannelMappings)
+      .values(mapping)
+      .returning();
+    return newMapping;
+  }
+
+  async updateEPGChannelMapping(id: number, mappingUpdate: Partial<InsertEPGChannelMapping>): Promise<EPGChannelMapping | undefined> {
+    const [updatedMapping] = await db
+      .update(epgChannelMappings)
+      .set(mappingUpdate)
+      .where(eq(epgChannelMappings.id, id))
+      .returning();
+    return updatedMapping;
+  }
+
+  async deleteEPGChannelMapping(id: number): Promise<boolean> {
+    const result = await db
+      .delete(epgChannelMappings)
+      .where(eq(epgChannelMappings.id, id));
+    return result.rowCount > 0;
+  }
+
+  // EPG Import Job operations
+  async getEPGImportJobs(epgSourceId?: number): Promise<EPGImportJob[]> {
+    if (epgSourceId) {
+      return db
+        .select()
+        .from(epgImportJobs)
+        .where(eq(epgImportJobs.epgSourceId, epgSourceId))
+        .orderBy(desc(epgImportJobs.startTime));
+    }
+    return db
+      .select()
+      .from(epgImportJobs)
+      .orderBy(desc(epgImportJobs.startTime));
+  }
+
+  async getEPGImportJob(id: number): Promise<EPGImportJob | undefined> {
+    const [job] = await db.select().from(epgImportJobs).where(eq(epgImportJobs.id, id));
+    return job;
+  }
+
+  async createEPGImportJob(job: InsertEPGImportJob): Promise<EPGImportJob> {
+    const [newJob] = await db
+      .insert(epgImportJobs)
+      .values(job)
+      .returning();
+    return newJob;
+  }
+
+  async updateEPGImportJob(id: number, jobUpdate: Partial<InsertEPGImportJob>): Promise<EPGImportJob | undefined> {
+    const [updatedJob] = await db
+      .update(epgImportJobs)
+      .set(jobUpdate)
+      .where(eq(epgImportJobs.id, id))
+      .returning();
+    return updatedJob;
+  }
+
+  async deleteEPGImportJob(id: number): Promise<boolean> {
+    const result = await db
+      .delete(epgImportJobs)
+      .where(eq(epgImportJobs.id, id));
+    return result.rowCount > 0;
   }
 }
 

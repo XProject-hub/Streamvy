@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { z } from "zod";
 import { setupAuth } from "./auth";
 import { storage, MemStorage } from "./storage";
+import { epgService } from "./epg-service";
 import axios from "axios";
 import {
   insertCategorySchema,
@@ -15,6 +16,9 @@ import {
   insertWatchHistorySchema,
   insertUserPreferencesSchema,
   insertSiteSettingsSchema,
+  insertEPGSourceSchema,
+  insertEPGChannelMappingSchema,
+  insertEPGImportJobSchema
 } from "@shared/schema";
 
 // Admin middleware to check if user is an admin
@@ -851,16 +855,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "EPG source not found" });
       }
       
-      // Refresh EPG source
-      const refreshedSource = await storage.refreshEPGSource(id);
-      if (!refreshedSource) {
-        return res.status(500).json({ message: "Failed to refresh EPG data" });
-      }
-      
-      res.json({
-        message: "EPG data refreshed successfully",
-        source: refreshedSource
+      // Create a new EPG import job
+      const importJob = await storage.createEPGImportJob({
+        epgSourceId: id,
+        status: 'running',
+        startTime: new Date(),
+        endTime: null,
+        channelCount: 0,
+        programCount: 0,
+        errorMessage: null
       });
+      
+      try {
+        // Use EPG service to fetch and process EPG data
+        const result = await epgService.fetchAndProcessEPG(id);
+        
+        // Update job with results
+        await storage.updateEPGImportJob(importJob.id, {
+          status: 'completed',
+          endTime: new Date(),
+          channelsImported: result.channelsImported || 0,
+          programsImported: result.programsImported || 0,
+          errors: []
+        });
+        
+        res.json({
+          message: "EPG data refreshed successfully",
+          source: existingSource,
+          job: {
+            id: importJob.id,
+            status: 'completed',
+            channelsImported: result.channelsImported || 0,
+            programsImported: result.programsImported || 0
+          }
+        });
+      } catch (fetchError) {
+        // Update job with error
+        await storage.updateEPGImportJob(importJob.id, {
+          status: 'failed',
+          endTime: new Date(),
+          errors: [(fetchError as Error).message]
+        });
+        
+        throw fetchError;
+      }
     } catch (error) {
       console.error("Error refreshing EPG source:", error);
       res.status(500).json({ message: "Failed to refresh EPG data: " + (error as Error).message });
@@ -879,6 +917,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to process EPG file: " + (error as Error).message });
+    }
+  });
+  
+  // Generate WebGrab+ configuration file
+  app.post("/api/admin/epg/webgrab/config", ensureAdmin, async (req, res) => {
+    try {
+      const configSchema = z.object({
+        siteIni: z.string(),
+        channels: z.array(z.object({
+          channelId: z.number(),
+          displayName: z.string(),
+          siteId: z.string()
+        })),
+        timespan: z.number().min(1).max(14).default(3),
+        update: z.enum(['i', 'g', 'f']).default('i')
+      });
+      
+      const validation = configSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid configuration data", 
+          errors: validation.error.format() 
+        });
+      }
+      
+      const config = validation.data;
+      const configXml = await epgService.generateWebGrabConfig(config);
+      
+      res.json({
+        message: "WebGrab+ configuration generated successfully",
+        config: configXml
+      });
+    } catch (error) {
+      console.error("Error generating WebGrab+ configuration:", error);
+      res.status(500).json({ message: "Failed to generate WebGrab+ configuration: " + (error as Error).message });
+    }
+  });
+  
+  // Channel mappings
+  app.get("/api/admin/epg/channel-mappings", ensureAdmin, async (_req, res) => {
+    try {
+      const mappings = await storage.getEPGChannelMappings();
+      res.json(mappings);
+    } catch (error) {
+      console.error("Error fetching EPG channel mappings:", error);
+      res.status(500).json({ message: "Failed to get EPG channel mappings" });
+    }
+  });
+  
+  app.post("/api/admin/epg/channel-mappings", ensureAdmin, async (req, res) => {
+    try {
+      const mapping = await storage.createEPGChannelMapping(req.body);
+      res.status(201).json(mapping);
+    } catch (error) {
+      console.error("Error creating EPG channel mapping:", error);
+      res.status(500).json({ message: "Failed to create EPG channel mapping" });
+    }
+  });
+  
+  app.put("/api/admin/epg/channel-mappings/:id", ensureAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid mapping ID" });
+      }
+      
+      const mapping = await storage.updateEPGChannelMapping(id, req.body);
+      if (!mapping) {
+        return res.status(404).json({ message: "EPG channel mapping not found" });
+      }
+      
+      res.json(mapping);
+    } catch (error) {
+      console.error("Error updating EPG channel mapping:", error);
+      res.status(500).json({ message: "Failed to update EPG channel mapping" });
+    }
+  });
+  
+  app.delete("/api/admin/epg/channel-mappings/:id", ensureAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid mapping ID" });
+      }
+      
+      const deleted = await storage.deleteEPGChannelMapping(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "EPG channel mapping not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      console.error("Error deleting EPG channel mapping:", error);
+      res.status(500).json({ message: "Failed to delete EPG channel mapping" });
+    }
+  });
+  
+  // EPG Import Jobs
+  app.get("/api/admin/epg/import-jobs", ensureAdmin, async (_req, res) => {
+    try {
+      const jobs = await storage.getEPGImportJobs();
+      res.json(jobs);
+    } catch (error) {
+      console.error("Error fetching EPG import jobs:", error);
+      res.status(500).json({ message: "Failed to get EPG import jobs" });
     }
   });
 

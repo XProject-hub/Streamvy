@@ -233,7 +233,9 @@ export const epgSources = pgTable("epg_sources", {
 export const insertEPGSourceSchema = createInsertSchema(epgSources).pick({
   name: true,
   url: true,
-  description: true
+  description: true,
+  lastUpdate: true,
+  channelCount: true
 });
 
 export type EPGSource = typeof epgSources.$inferSelect;
