@@ -126,7 +126,7 @@ const CryptoPaymentModal: React.FC<CryptoPaymentModalProps> = ({
           // Step 1: Select cryptocurrency
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Amount: <span className="font-semibold">${amount.toFixed(2)} USD</span>
+              Amount: <span className="font-semibold">€{amount.toFixed(2)} EUR</span>
             </p>
             <div className="flex flex-col space-y-2">
               <Label htmlFor="currency">Select cryptocurrency:</Label>

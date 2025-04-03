@@ -139,6 +139,12 @@ export interface IStorage {
   
   // User subscription operations
   updateUserSubscription(userId: number, subscription: { isPremium: boolean; premiumTier?: string; premiumExpiresAt?: Date }): Promise<User>;
+  checkUserPremiumStatus(userId: number): Promise<{ isPremium: boolean; planName: string | null; expiryDate: Date | null }>;
+  
+  // Premium content operations
+  getPremiumMovies(): Promise<Movie[]>;
+  getPremiumSeries(): Promise<Series[]>;
+  getPremiumChannels(): Promise<Channel[]>;
   
   // Session store
   sessionStore: SessionStore;
@@ -1022,6 +1028,62 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
   
+  async checkUserPremiumStatus(userId: number): Promise<{ isPremium: boolean; planName: string | null; expiryDate: Date | null }> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+    
+    // If user is not premium, return false right away
+    if (!user.isPremium) {
+      return {
+        isPremium: false,
+        planName: null,
+        expiryDate: null
+      };
+    }
+    
+    // Check if premium has expired
+    const now = new Date();
+    const expiryDate = user.premiumExpiry;
+    const isExpired = expiryDate && expiryDate < now;
+    
+    // If premium is expired, update user record automatically
+    if (isExpired) {
+      this.updateUserSubscription(userId, {
+        isPremium: false,
+        premiumTier: null,
+        premiumExpiresAt: null
+      });
+      
+      return {
+        isPremium: false,
+        planName: null,
+        expiryDate: null
+      };
+    }
+    
+    // Premium is active
+    return {
+      isPremium: true,
+      planName: user.premiumPlan,
+      expiryDate: user.premiumExpiry
+    };
+  }
+  
+  // Premium content operations
+  async getPremiumMovies(): Promise<Movie[]> {
+    return Array.from(this.movies.values()).filter(movie => movie.isPremium);
+  }
+  
+  async getPremiumSeries(): Promise<Series[]> {
+    return Array.from(this.series.values()).filter(series => series.isPremium);
+  }
+  
+  async getPremiumChannels(): Promise<Channel[]> {
+    return Array.from(this.channels.values()).filter(channel => channel.isPremium);
+  }
+  
   private initializeSampleData() {
     // Initialize default site settings
     this.siteSettingsRecord = {
@@ -1416,6 +1478,28 @@ export class DatabaseStorage implements IStorage {
       pool,
       createTableIfMissing: true
     });
+  }
+  
+  // Premium content operations
+  async getPremiumMovies(): Promise<Movie[]> {
+    return await db
+      .select()
+      .from(movies)
+      .where(eq(movies.isPremium, true));
+  }
+  
+  async getPremiumSeries(): Promise<Series[]> {
+    return await db
+      .select()
+      .from(series)
+      .where(eq(series.isPremium, true));
+  }
+  
+  async getPremiumChannels(): Promise<Channel[]> {
+    return await db
+      .select()
+      .from(channels)
+      .where(eq(channels.isPremium, true));
   }
   
   // Watch History operations
@@ -2487,6 +2571,50 @@ export class DatabaseStorage implements IStorage {
     }
     
     return updatedUser;
+  }
+  
+  async checkUserPremiumStatus(userId: number): Promise<{ isPremium: boolean; planName: string | null; expiryDate: Date | null }> {
+    // Get the user record
+    const user = await this.getUser(userId);
+    if (!user) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+    
+    // Check if user has premium flag
+    if (!user.isPremium) {
+      return {
+        isPremium: false,
+        planName: null,
+        expiryDate: null
+      };
+    }
+    
+    // Check for expiration
+    const now = new Date();
+    const expiryDate = user.premiumExpiry;
+    const isExpired = expiryDate && expiryDate < now;
+    
+    // If premium has expired, update the user record
+    if (isExpired) {
+      await this.updateUserSubscription(userId, {
+        isPremium: false,
+        premiumTier: null,
+        premiumExpiresAt: null
+      });
+      
+      return {
+        isPremium: false,
+        planName: null,
+        expiryDate: null
+      };
+    }
+    
+    // Premium is active
+    return {
+      isPremium: true,
+      planName: user.premiumPlan,
+      expiryDate: user.premiumExpiry
+    };
   }
 }
 

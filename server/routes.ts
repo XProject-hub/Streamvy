@@ -30,6 +30,45 @@ const ensureAdmin = async (req: Request, res: Response, next: Function) => {
   next();
 };
 
+// Premium middleware to check if user has active premium subscription
+const ensurePremium = async (req: Request, res: Response, next: Function) => {
+  try {
+    // First check if user is authenticated
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized. Please log in." });
+    }
+    
+    const userId = req.user!.id;
+    
+    // Check premium status
+    const premiumStatus = await storage.checkUserPremiumStatus(userId);
+    
+    if (!premiumStatus.isPremium) {
+      // Check if it was expired
+      if (premiumStatus.expiryDate && premiumStatus.expiryDate < new Date()) {
+        return res.status(402).json({ 
+          message: "Premium subscription expired",
+          expired: true,
+          subscriptionRequired: true
+        });
+      }
+      
+      // No subscription
+      return res.status(402).json({ 
+        message: "Premium subscription required to access this content",
+        expired: false,
+        subscriptionRequired: true
+      });
+    }
+    
+    // User has valid premium subscription
+    next();
+  } catch (error) {
+    console.error("Error checking premium status:", error);
+    return res.status(500).json({ message: "Error checking premium status" });
+  }
+};
+
 // Define the EPG source schema to validate requests
 const epgSourceSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -1224,6 +1263,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register crypto payment routes
   app.use('/api/crypto-payments', cryptoPaymentsRoutes);
+
+  // Register premium content routes
+  
+  // Premium movies
+  app.get("/api/premium/movies", ensurePremium, async (_req, res) => {
+    try {
+      const movies = await storage.getPremiumMovies();
+      res.json(movies);
+    } catch (error) {
+      console.error("Error fetching premium movies:", error);
+      res.status(500).json({ message: "Failed to get premium movies" });
+    }
+  });
+  
+  // Stream access endpoints - these need premium verification
+  app.get("/api/stream/premium/movies/:id", ensurePremium, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid movie ID" });
+      }
+      
+      const movie = await storage.getMovie(id);
+      if (!movie) {
+        return res.status(404).json({ message: "Movie not found" });
+      }
+      
+      // If movie is premium, we ensure it's protected (redundant with middleware but good practice)
+      if (movie.isPremium) {
+        // We already checked premium status in middleware, so we're good to go
+        res.json({ streamSources: movie.streamSources });
+      } else {
+        // Non-premium content can be accessed without subscription
+        res.json({ streamSources: movie.streamSources });
+      }
+    } catch (error) {
+      console.error("Error getting premium movie stream:", error);
+      res.status(500).json({ message: "Failed to get movie stream" });
+    }
+  });
+  
+  // Premium series
+  app.get("/api/premium/series", ensurePremium, async (_req, res) => {
+    try {
+      const series = await storage.getPremiumSeries();
+      res.json(series);
+    } catch (error) {
+      console.error("Error fetching premium series:", error);
+      res.status(500).json({ message: "Failed to get premium series" });
+    }
+  });
+  
+  // Premium series episodes
+  app.get("/api/stream/premium/episodes/:id", ensurePremium, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid episode ID" });
+      }
+      
+      const episode = await storage.getEpisode(id);
+      if (!episode) {
+        return res.status(404).json({ message: "Episode not found" });
+      }
+      
+      // Get the series to check if it's premium
+      const series = await storage.getSeries(episode.seriesId);
+      if (!series) {
+        return res.status(404).json({ message: "Series not found" });
+      }
+      
+      // If series is premium, we ensure it's protected
+      if (series.isPremium) {
+        // Premium status already checked in middleware
+        res.json({ streamSources: episode.streamSources });
+      } else {
+        // Non-premium content can be accessed without subscription
+        res.json({ streamSources: episode.streamSources });
+      }
+    } catch (error) {
+      console.error("Error getting premium episode stream:", error);
+      res.status(500).json({ message: "Failed to get episode stream" });
+    }
+  });
+  
+  // Premium channels
+  app.get("/api/premium/channels", ensurePremium, async (_req, res) => {
+    try {
+      const channels = await storage.getPremiumChannels();
+      res.json(channels);
+    } catch (error) {
+      console.error("Error fetching premium channels:", error);
+      res.status(500).json({ message: "Failed to get premium channels" });
+    }
+  });
+  
+  // Premium channel streams
+  app.get("/api/stream/premium/channels/:id", ensurePremium, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid channel ID" });
+      }
+      
+      const channel = await storage.getChannel(id);
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+      
+      // If channel is premium, we ensure it's protected
+      if (channel.isPremium) {
+        // Premium status already checked in middleware
+        res.json({ streamSources: channel.streamSources });
+      } else {
+        // Non-premium content can be accessed without subscription
+        res.json({ streamSources: channel.streamSources });
+      }
+    } catch (error) {
+      console.error("Error getting premium channel stream:", error);
+      res.status(500).json({ message: "Failed to get channel stream" });
+    }
+  });
+
+  // Check premium status endpoint
+  app.get("/api/user/premium/status", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ 
+          message: "Unauthorized. Please log in.",
+          isPremium: false
+        });
+      }
+      
+      const userId = req.user!.id;
+      const premiumStatus = await storage.checkUserPremiumStatus(userId);
+      
+      return res.json({
+        ...premiumStatus,
+        expiryFormatted: premiumStatus.expiryDate 
+          ? new Date(premiumStatus.expiryDate).toLocaleDateString() 
+          : null
+      });
+    } catch (error) {
+      console.error("Error checking premium status:", error);
+      res.status(500).json({ message: "Error checking premium status" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

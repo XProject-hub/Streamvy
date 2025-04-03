@@ -8,32 +8,46 @@ import CryptoPaymentModal from "@/components/CryptoPaymentModal";
 
 const plans = [
   {
-    name: "Monthly",
-    price: "$5.99",
-    period: "month",
-    description: "Perfect for casual viewers",
+    name: "Daily",
+    price: "€5",
+    period: "day",
+    description: "Quick access for 24 hours",
     features: [
-      "Access to all premium content",
+      "Full access for 24 hours",
+      "All premium channels",
       "HD and 4K streaming",
       "Watch on any device",
       "Ad-free viewing experience",
-      "Priority customer support",
     ],
     isPopular: false,
   },
   {
+    name: "Monthly",
+    price: "€10",
+    period: "month",
+    description: "Perfect for regular viewers",
+    features: [
+      "Full access for 30 days",
+      "All premium channels",
+      "HD and 4K streaming",
+      "Watch on any device",
+      "Priority customer support",
+    ],
+    isPopular: true,
+  },
+  {
     name: "Annual",
-    price: "$49.99",
+    price: "€110",
     period: "year",
     description: "Best value for dedicated viewers",
     features: [
-      "Everything in Monthly plan",
-      "Save over 30% vs monthly",
+      "Full access for 12 months",
+      "Save €10 vs monthly plan",
+      "All premium channels",
       "Early access to new releases",
-      "Exclusive behind-the-scenes content",
-      "Download for offline viewing",
+      "Exclusive content",
     ],
-    isPopular: true,
+    isPopular: false,
   },
 ];
 
@@ -65,7 +79,7 @@ export default function PremiumPage() {
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8 mb-12 mx-auto max-w-4xl">
+      <div className="grid md:grid-cols-3 gap-8 mb-12 mx-auto max-w-6xl">
         {plans.map((plan) => (
           <Card 
             key={plan.name}
@@ -192,7 +206,7 @@ export default function PremiumPage() {
           isOpen={showCryptoModal}
           onClose={() => setShowCryptoModal(false)}
           planName={selectedPlan.name}
-          amount={parseFloat(selectedPlan.price.replace('$', ''))}
+          amount={parseFloat(selectedPlan.price.replace('€', ''))}
           onSuccess={() => {
             toast({
               title: "Subscription activated",

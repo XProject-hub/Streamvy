@@ -202,16 +202,18 @@ export class CryptoPaymentService {
     const now = new Date();
     
     switch (planName.toLowerCase()) {
+      case 'daily':
+        // 24 hours (1 day)
+        return new Date(now.getTime() + 24 * 60 * 60 * 1000);
       case 'monthly':
-        return new Date(now.setMonth(now.getMonth() + 1));
-      case 'annual':
-      case 'yearly':
-        return new Date(now.setFullYear(now.getFullYear() + 1));
-      case 'quarterly':
-        return new Date(now.setMonth(now.getMonth() + 3));
-      default:
-        // Default to 30 days
+        // 30 days
         return new Date(now.setDate(now.getDate() + 30));
+      case 'annual':
+        // 365 days (1 year)
+        return new Date(now.setDate(now.getDate() + 365));
+      default:
+        // Default to 24 hours if unknown plan
+        return new Date(now.getTime() + 24 * 60 * 60 * 1000);
     }
   }
 
