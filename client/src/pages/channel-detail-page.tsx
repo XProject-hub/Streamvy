@@ -167,7 +167,7 @@ export default function ChannelDetailPage() {
     <div className="container py-8 flex flex-col items-center">
       <div className="w-full max-w-5xl">
         <div className="mb-6">
-          <Button variant="outline" onClick={() => setLocation("/live-tv")}>
+          <Button variant="secondary" onClick={() => setLocation("/live-tv")} className="hover:bg-secondary-hover">
             <ChevronLeft className="mr-2 h-4 w-4" /> Back to Live TV
           </Button>
         </div>
@@ -207,7 +207,7 @@ export default function ChannelDetailPage() {
                 <h3 className="text-xl font-semibold mb-2">Stream Error</h3>
                 <p>We're having trouble playing this stream. It may be temporarily unavailable.</p>
               </div>
-              <Button onClick={() => setLocation("/live-tv")}>
+              <Button variant="primary" onClick={() => setLocation("/live-tv")} className="bg-primary hover:bg-primary-hover text-white">
                 Back to Live TV
               </Button>
             </div>
