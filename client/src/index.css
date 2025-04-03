@@ -48,6 +48,21 @@
     --ring: 240 4.9% 83.9%;
   }
 
+  /* Add smooth transitions for theme changes */
+  html {
+    transition: color 350ms ease, background-color 350ms ease;
+  }
+  
+  /* Apply transitions to common elements */
+  button, a, input, textarea, select, 
+  .card, .dialog, .popover, .modal, .sidebar, 
+  .navbar, .header, .footer, .dropdown {
+    transition: background-color 350ms ease, 
+                color 350ms ease, 
+                border-color 350ms ease, 
+                box-shadow 350ms ease;
+  }
+
   * {
     @apply border-border;
   }
@@ -75,4 +90,40 @@
 
 .text-yellow-500 {
   color: rgb(234, 179, 8) !important;
+}
+
+/* Enhanced card styling with theme-specific shadows */
+.card {
+  @apply rounded-lg overflow-hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.dark .card {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* Better button styles */
+.button-primary {
+  @apply px-4 py-2 rounded-md font-medium;
+  background: linear-gradient(to right, #4f46e5, #6366f1);
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+}
+
+.dark .button-primary {
+  background: linear-gradient(to right, #6366f1, #818cf8);
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.5);
+}
+
+/* Content card hover effects */
+.content-card {
+  @apply transform transition-transform duration-300;
+}
+
+.content-card:hover {
+  transform: translateY(-4px) scale(1.01);
+}
+
+/* System theme icon styling */
+.text-blue-500 {
+  color: rgb(59, 130, 246) !important;
 }
