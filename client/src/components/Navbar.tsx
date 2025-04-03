@@ -5,7 +5,7 @@ import { UserMenu } from "./UserMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
-import { ThemeToggle } from "./ThemeToggle";
+import { ThemeToggleSimple } from "./ThemeToggleSimple";
 
 export function Navbar() {
   const [location] = useLocation();
@@ -83,7 +83,7 @@ export function Navbar() {
           </div>
           
           {/* Theme Toggle */}
-          <ThemeToggle />
+          <ThemeToggleSimple />
           
           {/* User Menu */}
           <UserMenu />
