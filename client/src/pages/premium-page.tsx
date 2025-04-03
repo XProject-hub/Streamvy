@@ -1,8 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Shield } from "lucide-react";
+import { Check, Shield, Bitcoin } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+import { CryptoPaymentModal } from "@/components/CryptoPaymentModal";
 
 const plans = [
   {
@@ -38,12 +40,19 @@ const plans = [
 export default function PremiumPage() {
   const { appearance } = useTheme();
   const { toast } = useToast();
+  const [showCryptoModal, setShowCryptoModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<{name: string, price: string} | null>(null);
   
   const handleSubscribe = (planName: string) => {
-    toast({
-      title: "Success!",
-      description: `You've selected the ${planName} plan. Payment integration coming soon.`,
-    });
+    // Find the plan and set it as selected
+    const plan = plans.find(p => p.name === planName);
+    if (plan) {
+      setSelectedPlan({
+        name: plan.name,
+        price: plan.price
+      });
+      setShowCryptoModal(true);
+    }
   };
 
   return (
@@ -116,7 +125,7 @@ export default function PremiumPage() {
           <Shield className="h-6 w-6 mr-2" style={{ color: '#ff5500' }} />
           <h2 className="text-xl font-semibold">Premium Benefits</h2>
         </div>
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-4 gap-6">
           <div>
             <h3 className="font-medium mb-2">Exclusive Content</h3>
             <p className="text-gray-600 dark:text-gray-400">
@@ -133,6 +142,15 @@ export default function PremiumPage() {
             <h3 className="font-medium mb-2">High-Quality Streaming</h3>
             <p className="text-gray-600 dark:text-gray-400">
               Stream in the highest quality available, including 4K and HDR where available.
+            </p>
+          </div>
+          <div>
+            <h3 className="font-medium mb-2 flex items-center">
+              <Bitcoin className="h-4 w-4 mr-1" style={{ color: '#f7931a' }} />
+              Crypto Payments
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              Pay with Bitcoin, USDT, or Litecoin for complete privacy and security with your subscription.
             </p>
           </div>
         </div>
@@ -159,8 +177,24 @@ export default function PremiumPage() {
               New premium subscribers get a 7-day free trial. You can cancel anytime during the trial period and won't be charged.
             </p>
           </div>
+          <div>
+            <h3 className="font-semibold mb-2">How does payment with cryptocurrency work?</h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              We accept Bitcoin (BTC), Tether (USDT), and Litecoin (LTC). When you subscribe, you'll receive wallet addresses to send your payment. Once confirmed on the blockchain, your account will be automatically upgraded.
+            </p>
+          </div>
         </div>
       </div>
+
+      {/* Cryptocurrency payment modal */}
+      {selectedPlan && (
+        <CryptoPaymentModal
+          isOpen={showCryptoModal}
+          onClose={() => setShowCryptoModal(false)}
+          planName={selectedPlan.name}
+          planPrice={selectedPlan.price}
+        />
+      )}
     </div>
   );
 }
