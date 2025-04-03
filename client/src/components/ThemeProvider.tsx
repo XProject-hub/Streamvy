@@ -1,18 +1,22 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
-type Theme = "dark" | "light";
+// Define extended theme types to include system preference
+type ThemeMode = "dark" | "light" | "system";
+type ThemeAppearance = "dark" | "light";
 
 interface ThemeProviderProps {
   children: ReactNode;
 }
 
 type ThemeProviderState = {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
+  mode: ThemeMode;
+  appearance: ThemeAppearance;
+  setTheme: (mode: ThemeMode) => void;
 };
 
 const initialState: ThemeProviderState = {
-  theme: "light",
+  mode: "system",
+  appearance: "light",
   setTheme: () => null,
 };
 
@@ -20,48 +24,79 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 // Component definition
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(
-    () => (localStorage.getItem("theme") as Theme) || "light"
-  );
+  const [mode, setMode] = useState<ThemeMode>("system");
+  const [appearance, setAppearance] = useState<ThemeAppearance>("light");
 
-  // Function to apply theme to document root
-  function applyTheme(theme: Theme) {
+  // Function to determine if we should use dark mode
+  const getSystemPreference = (): ThemeAppearance => {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches 
+      ? "dark" 
+      : "light";
+  };
+
+  // Function to apply theme appearance to document root
+  const applyAppearance = (appearance: ThemeAppearance) => {
     // Add the class to the document element
     document.documentElement.classList.remove("light", "dark");
-    document.documentElement.classList.add(theme);
+    document.documentElement.classList.add(appearance);
+    
+    // Update state
+    setAppearance(appearance);
     
     // Log theme change
-    console.log("Theme changed to:", theme);
-  }
-
-  // Function to change theme
-  const setTheme = (newTheme: Theme) => {
-    console.log("Setting theme to:", newTheme);
-    localStorage.setItem("theme", newTheme);
-    setThemeState(newTheme);
-    applyTheme(newTheme);
+    console.log("Theme appearance applied:", appearance);
   };
+
+  // Function to change theme mode
+  const setTheme = (newMode: ThemeMode) => {
+    console.log("Setting theme mode to:", newMode);
+    localStorage.setItem("themeMode", newMode);
+    setMode(newMode);
+    
+    // Apply appropriate appearance based on mode
+    if (newMode === "system") {
+      applyAppearance(getSystemPreference());
+    } else {
+      applyAppearance(newMode);
+    }
+  };
+
+  // Listen for system preference changes
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    
+    const handleChange = () => {
+      if (mode === "system") {
+        applyAppearance(getSystemPreference());
+      }
+    };
+    
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [mode]);
 
   // Initialize theme on mount
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as Theme;
+    const savedMode = localStorage.getItem("themeMode") as ThemeMode | null;
     
-    if (savedTheme && (savedTheme === "dark" || savedTheme === "light")) {
-      console.log("Applying saved theme:", savedTheme);
-      applyTheme(savedTheme);
-      setThemeState(savedTheme);
+    if (savedMode) {
+      setMode(savedMode);
+      
+      if (savedMode === "system") {
+        applyAppearance(getSystemPreference());
+      } else {
+        applyAppearance(savedMode as ThemeAppearance);
+      }
     } else {
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const initialTheme = prefersDark ? "dark" : "light";
-      console.log("No saved theme, using system preference:", initialTheme);
-      applyTheme(initialTheme);
-      setThemeState(initialTheme);
-      localStorage.setItem("theme", initialTheme);
+      // Default to system
+      setMode("system");
+      applyAppearance(getSystemPreference());
+      localStorage.setItem("themeMode", "system");
     }
   }, []);
 
   return (
-    <ThemeProviderContext.Provider value={{ theme, setTheme }}>
+    <ThemeProviderContext.Provider value={{ mode, appearance, setTheme }}>
       {children}
     </ThemeProviderContext.Provider>
   );
