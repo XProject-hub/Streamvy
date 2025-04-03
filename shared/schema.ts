@@ -102,6 +102,7 @@ export const channels = pgTable("channels", {
   streamSources: jsonb("stream_sources").notNull(), // Array of URLs with priority
   status: text("status").default("unknown").notNull(), // 'online', 'offline', 'unknown'
   lastChecked: timestamp("last_checked"),
+  isPremium: boolean("is_premium").default(false).notNull(), // Indicates if channel requires premium subscription
 });
 
 export const insertChannelSchema = createInsertSchema(channels).pick({
@@ -113,6 +114,7 @@ export const insertChannelSchema = createInsertSchema(channels).pick({
   streamSources: true,
   status: true,
   lastChecked: true,
+  isPremium: true,
 });
 
 // EPG Programs - shows or events scheduled on channels

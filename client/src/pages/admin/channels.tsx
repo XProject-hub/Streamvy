@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -64,7 +65,8 @@ const channelFormSchema = z.object({
     priority: z.number().int().min(1),
     format: z.string().min(1, "Format is required"),
     label: z.string().optional()
-  })).min(1, "At least one stream source is required")
+  })).min(1, "At least one stream source is required"),
+  isPremium: z.boolean().default(false)
 });
 
 type ChannelFormValues = z.infer<typeof channelFormSchema>;
@@ -98,6 +100,7 @@ export default function AdminChannels() {
       categoryId: "",
       countryId: "",
       epgId: "",
+      isPremium: false,
       streamSources: [
         { url: "", priority: 1, format: "hls", label: "Main" }
       ]
@@ -204,6 +207,7 @@ export default function AdminChannels() {
       categoryId: channel.categoryId ? channel.categoryId.toString() : "",
       countryId: channel.countryId ? channel.countryId.toString() : "",
       epgId: channel.epgId || "",
+      isPremium: channel.isPremium || false,
       streamSources: channel.streamSources as StreamSource[]
     });
     
@@ -219,6 +223,7 @@ export default function AdminChannels() {
       categoryId: "",
       countryId: "",
       epgId: "",
+      isPremium: false,
       streamSources: [
         { url: "", priority: 1, format: "hls", label: "Main" }
       ]
@@ -324,6 +329,7 @@ export default function AdminChannels() {
                     <TableHead>Country</TableHead>
                     <TableHead>EPG ID</TableHead>
                     <TableHead>Sources</TableHead>
+                    <TableHead>Premium</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -348,6 +354,19 @@ export default function AdminChannels() {
                       <TableCell>{getCountryName(channel.countryId)}</TableCell>
                       <TableCell>{channel.epgId || "N/A"}</TableCell>
                       <TableCell>{channel.streamSources?.length || 0} sources</TableCell>
+                      <TableCell>
+                        {channel.isPremium ? (
+                          <div className="flex items-center">
+                            <div className="h-2.5 w-2.5 rounded-full bg-green-500 mr-2"></div>
+                            <span className="text-green-600 dark:text-green-400 font-medium">Premium</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <div className="h-2.5 w-2.5 rounded-full bg-gray-300 dark:bg-gray-600 mr-2"></div>
+                            <span className="text-gray-500 dark:text-gray-400">Free</span>
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
@@ -504,6 +523,27 @@ export default function AdminChannels() {
                       ID used to match program guide data
                     </FormDescription>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="isPremium"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Premium Content</FormLabel>
+                      <FormDescription>
+                        Mark this channel as premium content (subscribers only)
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />
