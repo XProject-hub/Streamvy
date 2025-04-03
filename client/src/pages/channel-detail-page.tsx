@@ -167,13 +167,22 @@ export default function ChannelDetailPage() {
     <div className="container py-8 flex flex-col items-center">
       <div className="w-full max-w-5xl">
         <div className="mb-6">
-          <Button
-            variant="default"
+          <button
             onClick={() => setLocation("/live-tv")}
-            className="bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600 dark:text-white"
+            style={{
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              padding: '10px 16px',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              fontWeight: '500',
+              border: 'none',
+              cursor: 'pointer'
+            }}
           >
             <ChevronLeft className="mr-2 h-4 w-4" /> Back to Live TV
-          </Button>
+          </button>
         </div>
         
         {/* Channel header - centered */}
@@ -211,13 +220,22 @@ export default function ChannelDetailPage() {
                 <h3 className="text-xl font-semibold mb-2">Stream Error</h3>
                 <p>We're having trouble playing this stream. It may be temporarily unavailable.</p>
               </div>
-              <Button 
-                variant="default"
-                onClick={() => setLocation("/live-tv")} 
-                className="bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600 dark:text-white"
+              <button
+                onClick={() => setLocation("/live-tv")}
+                style={{
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  padding: '10px 16px',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  fontWeight: '500',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
               >
                 Back to Live TV
-              </Button>
+              </button>
             </div>
           ) : !isPlaying ? (
             <div className="absolute inset-0 flex items-center justify-center">
