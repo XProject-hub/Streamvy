@@ -10,7 +10,7 @@ import MoviesPage from "@/pages/movies-page";
 import SeriesPage from "@/pages/series-page";
 import AuthPage from "@/pages/auth-page";
 import PremiumPage from "@/pages/premium-page";
-import PaymentMethodsDemo from "@/pages/payment-methods-demo";
+
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminChannels from "@/pages/admin/channels";
 import AdminMovies from "@/pages/admin/movies";
@@ -41,7 +41,7 @@ function Router() {
           <Route path="/series" component={SeriesPage} />
           <Route path="/auth" component={AuthPage} />
           <Route path="/premium" component={PremiumPage} />
-          <Route path="/payment-methods-demo" component={PaymentMethodsDemo} />
+
           <ProtectedRoute path="/admin" component={AdminDashboard} adminOnly />
           <ProtectedRoute path="/admin/channels" component={AdminChannels} adminOnly />
           <ProtectedRoute path="/admin/movies" component={AdminMovies} adminOnly />

@@ -6,7 +6,7 @@ import { storage, MemStorage } from "./storage";
 import { epgService } from "./epg-service";
 import cryptoPaymentsRoutes from "./routes/crypto-payments";
 import ppvRoutes from "./routes/ppv-routes";
-import stripePaymentsRoutes from "./routes/stripe-payments";
+
 import axios from "axios";
 import {
   insertCategorySchema,
@@ -1266,7 +1266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register payment and PPV routes
   app.use('/api/crypto-payments', cryptoPaymentsRoutes);
   app.use('/api/ppv', ppvRoutes);
-  app.use('/api/stripe', stripePaymentsRoutes);
+
 
   // Register premium content routes
   
