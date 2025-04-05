@@ -5,6 +5,7 @@ import { exec } from 'child_process';
 import { storage } from '../storage';
 import { epgService } from '../epg-service';
 import axios from 'axios';
+import * as xml2js from 'xml2js';
 
 const execAsync = promisify(exec);
 const writeFileAsync = promisify(fs.writeFile);
@@ -16,7 +17,7 @@ export interface WebGrabSiteConfig {
   id: string;
   name: string;
   url: string;
-  channels: Array<{
+  channels?: Array<{
     id: string;
     name: string;
     xmltvId: string;
@@ -229,6 +230,9 @@ export class WebGrabService {
         lastUpdate: new Date()
       });
       
+      // Auto-create channel mappings by name similarity before processing
+      await this.autoMapChannelsByName(sourceId);
+      
       // Now process the EPG data using the existing service
       const result = await epgService.fetchAndProcessEPG(sourceId);
       
@@ -264,6 +268,177 @@ export class WebGrabService {
         message: error instanceof Error ? error.message : 'Unknown error executing WebGrab+'
       };
     }
+  }
+  
+  /**
+   * Auto-map channels by name similarity
+   * This function automatically creates EPG channel mappings based on name similarity
+   */
+  async autoMapChannelsByName(sourceId: number): Promise<number> {
+    try {
+      console.log(`Auto-mapping channels for EPG source ${sourceId}...`);
+      
+      // Get all system channels
+      const channels = await storage.getChannels();
+      
+      // Get existing EPG mappings for this source
+      const existingMappings = await storage.getEPGChannelMappings(sourceId);
+      
+      // Get channel names from the WebGrab+ generated XMLTV
+      const xmltvPath = path.join(this.webgrabOutputDir, 'guide.xml');
+      const xmlContent = await readFileAsync(xmltvPath, 'utf8');
+      
+      // Parse XML to extract channel information
+      const parser = new xml2js.Parser({ explicitArray: true });
+      const result = await parser.parseStringPromise(xmlContent);
+      
+      if (!result.tv || !result.tv.channel) {
+        console.log('No channel data found in XMLTV file');
+        return 0;
+      }
+      
+      const xmltvChannels = result.tv.channel as Array<{
+        $: { id: string };
+        'display-name': string[];
+      }>;
+      
+      console.log(`Found ${xmltvChannels.length} channels in XMLTV file`);
+      
+      let mappingsCreated = 0;
+      
+      // Process each XMLTV channel
+      for (const xmltvChannel of xmltvChannels) {
+        const channelId = xmltvChannel.$.id;
+        const displayName = Array.isArray(xmltvChannel['display-name']) 
+          ? xmltvChannel['display-name'][0]
+          : typeof xmltvChannel['display-name'] === 'string' 
+            ? xmltvChannel['display-name']
+            : '';
+        
+        // Skip if we already have a mapping for this channel
+        const existingMapping = existingMappings.find(m => 
+          m.externalChannelId === channelId && m.epgSourceId === sourceId
+        );
+        
+        if (existingMapping) {
+          console.log(`Mapping already exists for channel ${displayName} (${channelId})`);
+          continue;
+        }
+        
+        // Find best matching channel in our system
+        let bestMatch: { channelId: number, score: number } | null = null;
+        
+        for (const sysChannel of channels) {
+          const similarity = this.calculateNameSimilarity(
+            displayName.toLowerCase(), 
+            sysChannel.name.toLowerCase()
+          );
+          
+          if (similarity > 0.6 && (!bestMatch || similarity > bestMatch.score)) {
+            bestMatch = { 
+              channelId: sysChannel.id, 
+              score: similarity 
+            };
+          }
+        }
+        
+        if (bestMatch) {
+          const channel = channels.find(c => c.id === bestMatch!.channelId);
+          console.log(`Auto-mapping: "${displayName}" -> "${channel?.name}" (score: ${bestMatch.score.toFixed(2)})`);
+          
+          // Create the mapping
+          const mapping = await storage.createEPGChannelMapping({
+            channelId: bestMatch.channelId,
+            epgSourceId: sourceId,
+            externalChannelId: channelId,
+            externalChannelName: displayName,
+            isActive: true
+          });
+          
+          mappingsCreated++;
+        }
+      }
+      
+      console.log(`Auto-mapping complete. Created ${mappingsCreated} new channel mappings.`);
+      return mappingsCreated;
+    } catch (error) {
+      console.error('Error auto-mapping channels:', error);
+      return 0;
+    }
+  }
+  
+  /**
+   * Calculate similarity between two strings
+   * Uses Levenshtein distance for string similarity
+   */
+  private calculateNameSimilarity(a: string, b: string): number {
+    if (a === b) return 1.0;
+    if (a.length === 0 || b.length === 0) return 0.0;
+    
+    // Simple case: direct substring match
+    if (a.includes(b) || b.includes(a)) {
+      const lengthRatio = Math.min(a.length, b.length) / Math.max(a.length, b.length);
+      return 0.7 + (0.3 * lengthRatio); // Score between 0.7-1.0 for substring matches
+    }
+    
+    // Split into words and check for word matches
+    const aWords = a.split(/\s+/);
+    const bWords = b.split(/\s+/);
+    
+    let matchingWords = 0;
+    
+    for (const wordA of aWords) {
+      if (wordA.length < 3) continue; // Skip short words
+      
+      for (const wordB of bWords) {
+        if (wordB.length < 3) continue; // Skip short words
+        
+        if (wordA === wordB || wordA.includes(wordB) || wordB.includes(wordA)) {
+          matchingWords++;
+          break;
+        }
+      }
+    }
+    
+    if (matchingWords > 0) {
+      const wordMatchRatio = matchingWords / Math.min(aWords.length, bWords.length);
+      return 0.5 + (0.5 * wordMatchRatio); // Score between 0.5-1.0 for word matches
+    }
+    
+    // Last resort: calculate basic Levenshtein distance
+    const maxLen = Math.max(a.length, b.length);
+    const distance = this.levenshteinDistance(a, b);
+    return 1 - (distance / maxLen);
+  }
+  
+  /**
+   * Calculate Levenshtein distance between two strings
+   */
+  private levenshteinDistance(a: string, b: string): number {
+    const matrix: number[][] = [];
+    
+    // Initialize matrix
+    for (let i = 0; i <= a.length; i++) {
+      matrix[i] = [i];
+    }
+    
+    for (let j = 0; j <= b.length; j++) {
+      matrix[0][j] = j;
+    }
+    
+    // Fill in the matrix
+    for (let i = 1; i <= a.length; i++) {
+      for (let j = 1; j <= b.length; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,      // deletion
+          matrix[i][j - 1] + 1,      // insertion
+          matrix[i - 1][j - 1] + cost // substitution
+        );
+      }
+    }
+    
+    return matrix[a.length][b.length];
   }
   
   /**
