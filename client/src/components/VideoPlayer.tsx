@@ -2,10 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
-import { Play, X, Volume2, VolumeX, Maximize, ChevronRight, ChevronLeft, Pause, Wifi, WifiOff } from "lucide-react";
+import { Play, X, Volume2, VolumeX, Maximize, ChevronRight, ChevronLeft, Pause, Wifi, WifiOff, Settings, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StreamSource } from "@shared/schema";
 import { testStreamSource, getOptimalVideoQuality, BandwidthTestResult } from "@/lib/video-utils";
+import { 
+  configureAdaptiveStreaming, 
+  getStreamQualityInfo, 
+  setQualityLevel, 
+  selectOptimalSource,
+  recordStreamQualityMetrics,
+  QualityLevel,
+  StreamQualityInfo
+} from "@/lib/adaptive-streaming";
 
 interface VideoPlayerProps {
   title: string;
@@ -113,12 +122,33 @@ export function VideoPlayer({
         return;
       }
 
-      const source = sortedSources[sourceIndex];
-      setActiveSource(source);
-      setCurrentSourceIndex(sourceIndex);
-      setSourceError(false);
-
       try {
+        // If we have multiple sources, select the optimal one based on network conditions
+        let source: StreamSource;
+        let selectedSourceIndex = sourceIndex;
+        let recommendedQuality: QualityLevel = 'auto';
+        
+        if (sortedSources.length > 1 && sourceIndex === 0) {
+          // Select best source based on network conditions and bandwidth
+          const result = await selectOptimalSource(
+            sortedSources,
+            autoQuality ? undefined : (connectionQuality === 'high' ? '1080p' : connectionQuality === 'medium' ? '720p' : '480p') as QualityLevel
+          );
+          
+          source = result.source;
+          recommendedQuality = result.recommendedQuality;
+          selectedSourceIndex = sortedSources.findIndex(s => s.url === source.url);
+          if (selectedSourceIndex === -1) selectedSourceIndex = 0;
+          
+          console.log(`Selected optimal source: ${source.url}, quality: ${recommendedQuality}`);
+        } else {
+          source = sortedSources[sourceIndex];
+        }
+        
+        setActiveSource(source);
+        setCurrentSourceIndex(selectedSourceIndex);
+        setSourceError(false);
+
         // Test if the source is available
         const isSourceAvailable = await testStreamSource(source.url);
         if (!isSourceAvailable) {
@@ -134,21 +164,38 @@ export function VideoPlayer({
           hlsRef.current = null;
         }
         
-        // If we have bandwidth info, apply the quality level immediately
-        const quality = autoQuality && bandwidthInfo ? bandwidthInfo.quality : 'auto';
-
         // Handle HLS format
         if (source.format === 'hls' && Hls.isSupported()) {
           const hls = new Hls({
             enableWorker: true,
             lowLatencyMode: isLive,
             backBufferLength: isLive ? 30 : 60,
+            // Add better ABR configuration
+            abrEwmaDefaultEstimate: 1000000, // 1Mbps default
+            abrEwmaFastLive: 3.0,
+            abrEwmaSlowLive: 9.0,
+            startLevel: -1, // Auto quality by default
+          });
+          
+          // Configure adaptive streaming
+          configureAdaptiveStreaming(hls, {
+            initialQuality: recommendedQuality,
+            enableAdaptiveQuality: autoQuality,
+            startLevel: autoQuality ? -1 : 0,
           });
           
           hls.loadSource(source.url);
           hls.attachMedia(video);
           
+          // Set up quality metrics recording
+          recordStreamQualityMetrics(hls, activeSource?.contentType || 'unknown', activeSource?.contentId || 0);
+          
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            // If we have a preferred quality, apply it
+            if (!autoQuality && recommendedQuality !== 'auto') {
+              setQualityLevel(hls, recommendedQuality);
+            }
+            
             if (isPlaying) video.play().catch(console.error);
           });
           
@@ -161,6 +208,7 @@ export function VideoPlayer({
             }
           });
           
+          // Save the HLS instance
           hlsRef.current = hls;
         } 
         // For MP4 and other supported formats, use native video

@@ -173,6 +173,31 @@ export interface IStorage {
   getLatestStreamEvent(userId: number, contentType: string, contentId: number, event: string): Promise<StreamAnalytics | undefined>;
   getStreamQualityStats(userId?: number): Promise<{ quality: string; count: number }[]>;
   getStreamBufferingStats(userId?: number, days?: number): Promise<{ date: string; avgBufferingMs: number; count: number }[]>;
+  getStreamQualityAnalytics(userId: number, periodDays?: number): Promise<{
+    quality: Array<{ 
+      timestamp: Date; 
+      quality: string; 
+      contentType: string;
+      contentId: number;
+      bandwidth: number | null;
+    }>;
+    errors: Array<{
+      timestamp: Date;
+      error: string;
+      contentType: string;
+      contentId: number;
+    }>;
+    buffering: Array<{
+      timestamp: Date;
+      duration: number | null;
+      contentType: string;
+      contentId: number;
+    }>;
+    averageBandwidth: number | null;
+    mostUsedQuality: string | null;
+    errorRate: number;
+    bufferingRate: number;
+  }>;
   
   // Stream Token operations
   createActiveStreamToken(token: InsertActiveStreamToken): Promise<ActiveStreamToken>;
@@ -1049,6 +1074,111 @@ export class MemStorage implements IStorage {
         count
       }))
       .sort((a, b) => a.date.localeCompare(b.date)); // Sort by date ascending
+  }
+  
+  async getStreamQualityAnalytics(userId: number, periodDays: number = 7): Promise<{
+    quality: Array<{ 
+      timestamp: Date; 
+      quality: string; 
+      contentType: string;
+      contentId: number;
+      bandwidth: number | null;
+    }>;
+    errors: Array<{
+      timestamp: Date;
+      error: string;
+      contentType: string;
+      contentId: number;
+    }>;
+    buffering: Array<{
+      timestamp: Date;
+      duration: number | null;
+      contentType: string;
+      contentId: number;
+    }>;
+    averageBandwidth: number | null;
+    mostUsedQuality: string | null;
+    errorRate: number;
+    bufferingRate: number;
+  }> {
+    // Get records from the last periodDays
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - periodDays);
+    
+    // Filter records for the user within the time period
+    let records = Array.from(this.streamAnalyticsRecords.values())
+      .filter(record => record.userId === userId && record.timestamp >= cutoffDate);
+    
+    // Extract quality change events
+    const qualityEvents = records
+      .filter(record => record.event === 'quality_change' && record.quality)
+      .map(record => ({
+        timestamp: record.timestamp,
+        quality: record.quality!,
+        contentType: record.contentType,
+        contentId: record.contentId,
+        bandwidth: record.bandwidth
+      }));
+    
+    // Extract error events
+    const errorEvents = records
+      .filter(record => record.event === 'error' && record.error)
+      .map(record => ({
+        timestamp: record.timestamp,
+        error: record.error!,
+        contentType: record.contentType,
+        contentId: record.contentId
+      }));
+    
+    // Extract buffering events
+    const bufferingEvents = records
+      .filter(record => record.event === 'buffering')
+      .map(record => ({
+        timestamp: record.timestamp,
+        duration: record.bufferingDuration,
+        contentType: record.contentType,
+        contentId: record.contentId
+      }));
+    
+    // Calculate average bandwidth
+    const bandwidthValues = records
+      .filter(record => record.bandwidth !== null && record.bandwidth !== undefined)
+      .map(record => record.bandwidth!);
+    
+    const averageBandwidth = bandwidthValues.length > 0
+      ? Math.round(bandwidthValues.reduce((sum, val) => sum + val, 0) / bandwidthValues.length)
+      : null;
+    
+    // Determine most used quality
+    const qualityCounts: Record<string, number> = {};
+    qualityEvents.forEach(event => {
+      qualityCounts[event.quality] = (qualityCounts[event.quality] || 0) + 1;
+    });
+    
+    let mostUsedQuality: string | null = null;
+    let maxCount = 0;
+    
+    Object.entries(qualityCounts).forEach(([quality, count]) => {
+      if (count > maxCount) {
+        mostUsedQuality = quality;
+        maxCount = count;
+      }
+    });
+    
+    // Calculate error and buffering rates
+    const totalEvents = records.length;
+    const errorRate = totalEvents > 0 ? errorEvents.length / totalEvents : 0;
+    const bufferingRate = totalEvents > 0 ? bufferingEvents.length / totalEvents : 0;
+    
+    return {
+      quality: qualityEvents,
+      errors: errorEvents,
+      buffering: bufferingEvents,
+      averageBandwidth,
+      mostUsedQuality,
+      errorRate,
+      bufferingRate
+    };
   }
   
   async getEPGImportJobs(epgSourceId?: number): Promise<EPGImportJob[]> {
@@ -3561,6 +3691,152 @@ export class DatabaseStorage implements IStorage {
       avgBufferingMs: Math.round(Number(row.avg_buffering_ms)),
       count: Number(row.count)
     }));
+  }
+  
+  async getStreamQualityAnalytics(userId: number, periodDays: number = 7): Promise<{
+    quality: Array<{ 
+      timestamp: Date; 
+      quality: string; 
+      contentType: string;
+      contentId: number;
+      bandwidth: number | null;
+    }>;
+    errors: Array<{
+      timestamp: Date;
+      error: string;
+      contentType: string;
+      contentId: number;
+    }>;
+    buffering: Array<{
+      timestamp: Date;
+      duration: number | null;
+      contentType: string;
+      contentId: number;
+    }>;
+    averageBandwidth: number | null;
+    mostUsedQuality: string | null;
+    errorRate: number;
+    bufferingRate: number;
+  }> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - periodDays);
+    
+    // Get all user analytics within the time period
+    const allEventsQuery = sql`
+      SELECT * FROM ${streamAnalytics}
+      WHERE user_id = ${userId} AND timestamp >= ${cutoffDate}
+      ORDER BY timestamp DESC
+    `;
+    
+    const allUserEventsResult = await db.execute(allEventsQuery);
+    const totalEvents = allUserEventsResult.rows.length;
+    
+    // Get quality change events
+    const qualityEventsQuery = sql`
+      SELECT timestamp, quality, content_type as contentType, content_id as contentId, bandwidth
+      FROM ${streamAnalytics}
+      WHERE 
+        user_id = ${userId} 
+        AND timestamp >= ${cutoffDate}
+        AND event = 'quality_change'
+        AND quality IS NOT NULL
+      ORDER BY timestamp DESC
+    `;
+    
+    const qualityResult = await db.execute(qualityEventsQuery);
+    const qualityEvents = qualityResult.rows.map(row => ({
+      timestamp: new Date(row.timestamp),
+      quality: row.quality as string,
+      contentType: row.contenttype as string,
+      contentId: Number(row.contentid),
+      bandwidth: row.bandwidth ? Number(row.bandwidth) : null
+    }));
+    
+    // Get error events
+    const errorEventsQuery = sql`
+      SELECT timestamp, error, content_type as contentType, content_id as contentId
+      FROM ${streamAnalytics}
+      WHERE 
+        user_id = ${userId} 
+        AND timestamp >= ${cutoffDate}
+        AND event = 'error'
+        AND error IS NOT NULL
+      ORDER BY timestamp DESC
+    `;
+    
+    const errorResult = await db.execute(errorEventsQuery);
+    const errorEvents = errorResult.rows.map(row => ({
+      timestamp: new Date(row.timestamp),
+      error: row.error as string,
+      contentType: row.contenttype as string,
+      contentId: Number(row.contentid)
+    }));
+    
+    // Get buffering events
+    const bufferingEventsQuery = sql`
+      SELECT timestamp, buffering_duration as duration, content_type as contentType, content_id as contentId
+      FROM ${streamAnalytics}
+      WHERE 
+        user_id = ${userId} 
+        AND timestamp >= ${cutoffDate}
+        AND event = 'buffering'
+      ORDER BY timestamp DESC
+    `;
+    
+    const bufferingResult = await db.execute(bufferingEventsQuery);
+    const bufferingEvents = bufferingResult.rows.map(row => ({
+      timestamp: new Date(row.timestamp),
+      duration: row.duration ? Number(row.duration) : null,
+      contentType: row.contenttype as string,
+      contentId: Number(row.contentid)
+    }));
+    
+    // Calculate average bandwidth
+    const bandwidthQuery = sql`
+      SELECT AVG(bandwidth) as avg_bandwidth
+      FROM ${streamAnalytics}
+      WHERE 
+        user_id = ${userId} 
+        AND timestamp >= ${cutoffDate}
+        AND bandwidth IS NOT NULL
+    `;
+    
+    const bandwidthResult = await db.execute(bandwidthQuery);
+    const averageBandwidth = bandwidthResult.rows[0]?.avg_bandwidth 
+      ? Math.round(Number(bandwidthResult.rows[0].avg_bandwidth)) 
+      : null;
+    
+    // Get most used quality
+    const mostUsedQualityQuery = sql`
+      SELECT quality, COUNT(*) as count
+      FROM ${streamAnalytics}
+      WHERE 
+        user_id = ${userId} 
+        AND timestamp >= ${cutoffDate}
+        AND quality IS NOT NULL
+      GROUP BY quality
+      ORDER BY count DESC
+      LIMIT 1
+    `;
+    
+    const mostUsedQualityResult = await db.execute(mostUsedQualityQuery);
+    const mostUsedQuality = mostUsedQualityResult.rows.length > 0 
+      ? mostUsedQualityResult.rows[0].quality as string 
+      : null;
+    
+    // Calculate error and buffering rates
+    const errorRate = totalEvents > 0 ? errorEvents.length / totalEvents : 0;
+    const bufferingRate = totalEvents > 0 ? bufferingEvents.length / totalEvents : 0;
+    
+    return {
+      quality: qualityEvents,
+      errors: errorEvents,
+      buffering: bufferingEvents,
+      averageBandwidth,
+      mostUsedQuality,
+      errorRate,
+      bufferingRate
+    };
   }
   
   // Stream Token operations

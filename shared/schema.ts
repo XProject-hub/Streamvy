@@ -262,6 +262,9 @@ export type StreamSource = {
   priority: number;
   format: string; // 'hls', 'mp4', etc.
   label?: string;
+  // New properties for adaptive streaming
+  resolution?: string; // e.g., '1080p', '720p', '480p', '360p'
+  bandwidth?: number; // in kbps
 };
 
 // EPG Source
