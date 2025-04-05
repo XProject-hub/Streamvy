@@ -10,6 +10,7 @@ import ppvRoutes from "./routes/ppv-routes";
 import userPreferencesRoutes from "./routes/user-preferences";
 import watchHistoryRoutes from "./routes/watch-history";
 import streamRoutes from "./routes/stream-routes";
+import analyticsRoutes from "./routes/analytics-routes";
 
 import axios from "axios";
 import {
@@ -1487,6 +1488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/ppv', ppvRoutes);
   app.use('/api', userPreferencesRoutes);
   app.use('/api', watchHistoryRoutes);
+  app.use('/api/analytics', analyticsRoutes);
   
   // Register stream routes for secure content streaming
   app.use('/api', streamRoutes);
