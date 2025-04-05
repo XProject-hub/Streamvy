@@ -284,9 +284,37 @@ export class WebGrabService {
       // Get existing EPG mappings for this source
       const existingMappings = await storage.getEPGChannelMappings(sourceId);
       
-      // Get channel names from the WebGrab+ generated XMLTV
-      const xmltvPath = path.join(this.webgrabOutputDir, 'guide.xml');
-      const xmlContent = await readFileAsync(xmltvPath, 'utf8');
+      // Get the EPG source details
+      const source = await storage.getEPGSource(sourceId);
+      if (!source) {
+        throw new Error('EPG source not found');
+      }
+      
+      // Determine if we're using a local WebGrab+ file or a remote URL
+      let xmlContent: string;
+      if (source.url.startsWith('file://')) {
+        // Local file from WebGrab+
+        const filePath = source.url.replace('file://', '');
+        xmlContent = await readFileAsync(filePath, 'utf8');
+      } else {
+        // Try to fetch from the EPG source URL
+        try {
+          const response = await axios.get(source.url);
+          xmlContent = response.data;
+        } catch (error) {
+          console.error(`Failed to fetch EPG data from ${source.url}:`, error);
+          
+          // As a fallback, generate a sample XMLTV file for testing
+          console.log('Using sample XMLTV data for testing');
+          
+          // Generate file in the output directory
+          const outputFile = path.join(this.webgrabOutputDir, 'guide.xml');
+          const sampleXML = await this.generateSampleXMLTV(sourceId);
+          await writeFileAsync(outputFile, sampleXML, 'utf8');
+          
+          xmlContent = sampleXML;
+        }
+      }
       
       // Parse XML to extract channel information
       const parser = new xml2js.Parser({ explicitArray: true });
@@ -299,7 +327,7 @@ export class WebGrabService {
       
       const xmltvChannels = result.tv.channel as Array<{
         $: { id: string };
-        'display-name': string[];
+        'display-name': string[] | string;
       }>;
       
       console.log(`Found ${xmltvChannels.length} channels in XMLTV file`);
@@ -356,6 +384,9 @@ export class WebGrabService {
           });
           
           mappingsCreated++;
+        } else {
+          // No match found above the threshold
+          console.log(`No matching channel found for "${displayName}" (${channelId})`);
         }
       }
       

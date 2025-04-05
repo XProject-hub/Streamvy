@@ -1143,6 +1143,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Auto-map EPG channels by name
+  app.post("/api/admin/epg/auto-map/:sourceId", ensureAdmin, async (req, res) => {
+    try {
+      const sourceId = parseInt(req.params.sourceId);
+      if (isNaN(sourceId)) {
+        return res.status(400).json({ message: "Invalid EPG source ID" });
+      }
+      
+      // Check if EPG source exists
+      const existingSource = await storage.getEPGSource(sourceId);
+      if (!existingSource) {
+        return res.status(404).json({ message: "EPG source not found" });
+      }
+      
+      // Call the WebGrab service to perform auto-mapping
+      const mappingsCreated = await webgrabService.autoMapChannelsByName(sourceId);
+      
+      res.json({
+        success: true,
+        message: `Successfully mapped ${mappingsCreated} channels by name`,
+        mappingsCreated
+      });
+    } catch (error) {
+      console.error("Error auto-mapping EPG channels:", error);
+      res.status(500).json({ message: "Failed to auto-map EPG channels" });
+    }
+  });
+  
+  // Auto-map a specific channel by name
+  app.post("/api/admin/epg/map-channel", ensureAdmin, async (req, res) => {
+    try {
+      const { channelId, sourceId, channelName } = req.body;
+      
+      if (!channelId || !sourceId) {
+        return res.status(400).json({ message: "Channel ID and source ID are required" });
+      }
+      
+      // Check if channel exists
+      const channel = await storage.getChannel(channelId);
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+      
+      // Check if EPG source exists
+      const source = await storage.getEPGSource(sourceId);
+      if (!source) {
+        return res.status(404).json({ message: "EPG source not found" });
+      }
+      
+      // Create a mapping with an external channel ID based on the channel name
+      const externalName = channelName || channel.name;
+      const externalId = externalName.toLowerCase().replace(/\s+/g, '');
+      
+      // Check if mapping already exists
+      const existingMappings = await storage.getEPGChannelMappings(sourceId);
+      const existingMapping = existingMappings.find(m => 
+        m.channelId === channelId && m.epgSourceId === sourceId
+      );
+      
+      if (existingMapping) {
+        // Update existing mapping
+        const updatedMapping = await storage.updateEPGChannelMapping(existingMapping.id, {
+          externalChannelId: externalId,
+          externalChannelName: externalName,
+          isActive: true
+        });
+        
+        return res.json({
+          success: true,
+          message: "Updated existing channel mapping",
+          mapping: updatedMapping
+        });
+      }
+      
+      // Create new mapping
+      const mapping = await storage.createEPGChannelMapping({
+        channelId,
+        epgSourceId: sourceId,
+        externalChannelId: externalId,
+        externalChannelName: externalName,
+        isActive: true
+      });
+      
+      res.status(201).json({
+        success: true,
+        message: "Successfully mapped channel by name",
+        mapping
+      });
+    } catch (error) {
+      console.error("Error mapping channel:", error);
+      res.status(500).json({ message: "Failed to map channel" });
+    }
+  });
+  
   // EPG Import Jobs
   app.get("/api/admin/epg/import-jobs", ensureAdmin, async (_req, res) => {
     try {
