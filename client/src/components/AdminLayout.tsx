@@ -12,8 +12,10 @@ import {
   Users,
   Settings,
   Database,
-  HardDrive
+  HardDrive,
+  GitBranch
 } from "lucide-react";
+import GitHubUpdateButton from "./admin/GitHubUpdateButton";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -40,7 +42,10 @@ export function AdminLayout({ children, activePath = "/admin" }: AdminLayoutProp
       <div className="flex flex-col md:flex-row gap-6">
         {/* Sidebar Navigation */}
         <div className="w-full md:w-1/5 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-          <h2 className="text-xl font-bold mb-4">Admin Panel</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">Admin Panel</h2>
+            <GitHubUpdateButton />
+          </div>
           <nav className="space-y-1">
             {adminNavItems.map((item) => (
               <Link 

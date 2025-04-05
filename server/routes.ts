@@ -12,6 +12,7 @@ import watchHistoryRoutes from "./routes/watch-history";
 import streamRoutes from "./routes/stream-routes";
 import analyticsRoutes from "./routes/analytics-routes";
 import { router as downloadBackupRoutes } from "./routes/download-backup";
+import githubRoutes from "./routes/github-routes";
 
 import axios from "axios";
 import {
@@ -1491,6 +1492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api', watchHistoryRoutes);
   app.use('/api/analytics', analyticsRoutes);
   app.use('/api', downloadBackupRoutes);
+  app.use('/api/admin', githubRoutes);
   
   // Register stream routes for secure content streaming
   app.use('/api', streamRoutes);

@@ -94,7 +94,7 @@ export default function DatabaseBackupPage() {
                 They're essential for disaster recovery and server migrations.
               </p>
               
-              <Alert variant="outline" className="mb-4">
+              <Alert variant="default" className="mb-4">
                 <RefreshCw className="h-4 w-4" />
                 <AlertTitle>Backup Best Practices</AlertTitle>
                 <AlertDescription>
