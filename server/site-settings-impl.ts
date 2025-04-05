@@ -11,7 +11,7 @@ export const memStorageSiteSettingsImpl = `
       // Create initial settings if they don't exist
       this.siteSettingsRecord = {
         id: 1,
-        siteName: settings.siteName || "StreamHive",
+        siteName: settings.siteName || "Streamvy",
         logoUrl: settings.logoUrl || null,
         primaryColor: settings.primaryColor || "#3b82f6",
         enableSubscriptions: settings.enableSubscriptions ?? true,
@@ -55,7 +55,7 @@ export const dbStorageSiteSettingsImpl = `
       if (!currentSettings) {
         // Create new settings if they don't exist
         const [newSettings] = await db.insert(siteSettings).values({
-          siteName: settingsData.siteName || "StreamHive",
+          siteName: settingsData.siteName || "Streamvy",
           logoUrl: settingsData.logoUrl,
           primaryColor: settingsData.primaryColor || "#3b82f6",
           enableSubscriptions: settingsData.enableSubscriptions ?? true,

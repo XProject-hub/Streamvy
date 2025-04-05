@@ -8,7 +8,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div>
-            <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">StreamHive</h3>
+            <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">Streamvy</h3>
             <ul className="space-y-2 text-sm">
               <li><Link href="/about" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">About Us</Link></li>
               <li><Link href="/contact" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">Contact</Link></li>
@@ -50,7 +50,7 @@ export function Footer() {
         
         <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 flex flex-col md:flex-row justify-between items-center">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 md:mb-0">
-            © {currentYear} StreamHive. All rights reserved.
+            © {currentYear} Streamvy. All rights reserved.
           </p>
           
           <div className="flex space-x-4">

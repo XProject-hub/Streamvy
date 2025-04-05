@@ -35,6 +35,19 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   
+  // User Preferences operations
+  getUserPreferences(userId: number): Promise<UserPreferences | undefined>;
+  createUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences>;
+  updateUserPreferences(userId: number, preferences: Partial<InsertUserPreferences>): Promise<UserPreferences | undefined>;
+  toggleFavorite(userId: number, contentType: string, contentId: number): Promise<UserPreferences | undefined>;
+  
+  // Watch History operations
+  getUserWatchHistory(userId: number): Promise<WatchHistory[]>;
+  getWatchHistory(id: number): Promise<WatchHistory | undefined>;
+  recordWatchEvent(event: InsertWatchHistory): Promise<WatchHistory>;
+  updateWatchEvent(id: number, event: Partial<InsertWatchHistory>): Promise<WatchHistory | undefined>;
+  getUserWatchStats(userId: number): Promise<any>;
+  
   // Category operations
   getCategories(): Promise<Category[]>;
   getCategory(id: number): Promise<Category | undefined>;
@@ -114,17 +127,7 @@ export interface IStorage {
   updateEPGImportJob(id: number, job: Partial<InsertEPGImportJob>): Promise<EPGImportJob | undefined>;
   deleteEPGImportJob(id: number): Promise<boolean>;
   
-  // Watch History operations
-  getUserWatchHistory(userId: number): Promise<WatchHistory[]>;
-  getWatchHistory(id: number): Promise<WatchHistory | undefined>;
-  recordWatchEvent(event: InsertWatchHistory): Promise<WatchHistory>;
-  updateWatchEvent(id: number, event: Partial<InsertWatchHistory>): Promise<WatchHistory | undefined>;
-  getUserWatchStats(userId: number): Promise<any>; // Stats object with watch metrics
-  
-  // User Preferences operations
-  getUserPreferences(userId: number): Promise<UserPreferences | undefined>;
-  createUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences>;
-  updateUserPreferences(userId: number, preferences: Partial<InsertUserPreferences>): Promise<UserPreferences | undefined>;
+
   
   // Site Settings operations
   getSiteSettings(): Promise<SiteSettings | undefined>;
@@ -911,6 +914,44 @@ export class MemStorage implements IStorage {
       .find(prefs => prefs.userId === userId);
   }
   
+  async toggleFavorite(userId: number, contentType: string, contentId: number): Promise<UserPreferences | undefined> {
+    let userPrefs = await this.getUserPreferences(userId);
+    
+    // If user doesn't have preferences yet, create them
+    if (!userPrefs) {
+      userPrefs = await this.createUserPreferences({
+        userId,
+        favorites: { movies: [], series: [], channels: [] },
+        preferredCategories: [],
+        contentFilters: {},
+        uiSettings: {}
+      });
+    }
+    
+    // Cast to any to allow dynamic property access
+    const favorites = userPrefs.favorites as any;
+    
+    // Make sure the content type exists in favorites
+    if (!favorites[contentType]) {
+      favorites[contentType] = [];
+    }
+    
+    // Check if content is already in favorites
+    const index = favorites[contentType].indexOf(contentId);
+    
+    // If it exists, remove it; otherwise, add it
+    if (index > -1) {
+      favorites[contentType].splice(index, 1);
+    } else {
+      favorites[contentType].push(contentId);
+    }
+    
+    // Update user preferences with the modified favorites
+    return this.updateUserPreferences(userId, {
+      favorites: favorites
+    });
+  }
+  
   async createUserPreferences(preferences: InsertUserPreferences): Promise<UserPreferences> {
     const id = this.userPreferencesCounter++;
     const now = new Date();
@@ -1257,7 +1298,7 @@ export class MemStorage implements IStorage {
     // Initialize default site settings
     this.siteSettingsRecord = {
       id: 1,
-      siteName: "StreamHive",
+      siteName: "Streamvy",
       logoUrl: null,
       primaryColor: "#3b82f6",
       enableSubscriptions: true,
@@ -1891,6 +1932,44 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userPreferences.userId, userId))
       .returning();
     return record;
+  }
+  
+  async toggleFavorite(userId: number, contentType: string, contentId: number): Promise<UserPreferences | undefined> {
+    let userPrefs = await this.getUserPreferences(userId);
+    
+    // If user doesn't have preferences yet, create them
+    if (!userPrefs) {
+      userPrefs = await this.createUserPreferences({
+        userId,
+        favorites: { movies: [], series: [], channels: [] },
+        preferredCategories: [],
+        contentFilters: {},
+        uiSettings: {}
+      });
+    }
+    
+    // Cast to any to allow dynamic property access
+    const favorites = userPrefs.favorites as any;
+    
+    // Make sure the content type exists in favorites
+    if (!favorites[contentType]) {
+      favorites[contentType] = [];
+    }
+    
+    // Check if content is already in favorites
+    const index = favorites[contentType].indexOf(contentId);
+    
+    // If it exists, remove it; otherwise, add it
+    if (index > -1) {
+      favorites[contentType].splice(index, 1);
+    } else {
+      favorites[contentType].push(contentId);
+    }
+    
+    // Update user preferences with the modified favorites
+    return this.updateUserPreferences(userId, {
+      favorites: favorites
+    });
   }
   
   // Site Settings operations

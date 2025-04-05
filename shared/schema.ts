@@ -337,7 +337,7 @@ export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;
 // Site Settings - global configuration options for the streaming platform
 export const siteSettings = pgTable("site_settings", {
   id: serial("id").primaryKey(),
-  siteName: text("siteName").default("StreamHive").notNull(),
+  siteName: text("siteName").default("Streamvy").notNull(),
   logoUrl: text("logoUrl"),
   primaryColor: text("primaryColor").default("#3b82f6").notNull(),
   enableSubscriptions: boolean("enableSubscriptions").default(true).notNull(),

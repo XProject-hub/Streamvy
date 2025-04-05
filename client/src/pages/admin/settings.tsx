@@ -57,7 +57,7 @@ export default function AdminSettings() {
       } catch (error) {
         // Return default settings if API doesn't exist yet
         return {
-          siteName: "StreamHive",
+          siteName: "Streamvy",
           logoUrl: "",
           primaryColor: "#3b82f6",
           enableSubscriptions: true,
@@ -170,7 +170,7 @@ export default function AdminSettings() {
                       <FormItem>
                         <FormLabel>Site Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="StreamHive" {...field} />
+                          <Input placeholder="Streamvy" {...field} />
                         </FormControl>
                         <FormDescription>
                           The name of your streaming platform

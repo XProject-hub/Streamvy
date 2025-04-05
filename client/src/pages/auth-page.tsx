@@ -118,7 +118,7 @@ export default function AuthPage() {
         <div className="lg:w-1/2 bg-gradient-to-br from-primary-600 to-secondary-500 p-8 text-white">
           <div className="h-full flex flex-col justify-center">
             <h1 className="text-3xl md:text-4xl font-bold mb-4">
-              Welcome to StreamHive
+              Welcome to Streamvy
             </h1>
             <p className="text-lg mb-6 text-white/90">
               Your ultimate streaming platform with thousands of channels, movies, and series - all in one place.
@@ -235,7 +235,7 @@ export default function AuthPage() {
                   <CardHeader>
                     <CardTitle>Create an Account</CardTitle>
                     <CardDescription>
-                      Register to access all features of StreamHive
+                      Register to access all features of Streamvy
                     </CardDescription>
                   </CardHeader>
                   <CardContent>

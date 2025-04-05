@@ -75,7 +75,7 @@ export default function PremiumPage() {
         <h1 className="text-4xl font-bold mb-4">Upgrade Your Streaming Experience</h1>
         <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
           Enjoy unlimited access to premium content, exclusive events, and an ad-free viewing experience
-          with StreamHive Premium.
+          with Streamvy Premium.
         </p>
       </div>
 

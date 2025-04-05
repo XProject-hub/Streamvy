@@ -6,6 +6,8 @@ import { storage, MemStorage } from "./storage";
 import { epgService } from "./epg-service";
 import cryptoPaymentsRoutes from "./routes/crypto-payments";
 import ppvRoutes from "./routes/ppv-routes";
+import userPreferencesRoutes from "./routes/user-preferences";
+import watchHistoryRoutes from "./routes/watch-history";
 
 import axios from "axios";
 import {
@@ -1222,7 +1224,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!settings) {
         // Return default settings if they don't exist in storage
         const defaultSettings = {
-          siteName: "StreamHive",
+          siteName: "Streamvy",
           logoUrl: null,
           primaryColor: "#3b82f6",
           enableSubscriptions: true,
@@ -1266,6 +1268,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register payment and PPV routes
   app.use('/api/crypto-payments', cryptoPaymentsRoutes);
   app.use('/api/ppv', ppvRoutes);
+  app.use('/api', userPreferencesRoutes);
+  app.use('/api', watchHistoryRoutes);
 
 
   // Register premium content routes
