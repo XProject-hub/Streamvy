@@ -83,57 +83,64 @@ const epgSourceSchema = z.object({
 
 // Function to discover EPG sources based on country code
 async function discoverEPGSources(countryCode: string): Promise<Array<{name: string, url: string, description: string}>> {
-  // Common EPG source patterns by country
+  // Common EPG source patterns by country with updated URLs
   const commonPatterns = {
     // European sources
     'uk': [
       { name: 'UK - XMLTV.co.uk', url: 'https://xmltv.co.uk/feed/tv.xml', description: 'Free UK TV listings' },
-      { name: 'UK - EPG Heaven', url: 'http://epg.streamstv.me/epg/guide-uk.xml.gz', description: 'UK TV guide' }
+      { name: 'UK - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/uk/sky.com.epg.xml', description: 'UK TV guide from IPTV-ORG' }
     ],
     'de': [
-      { name: 'Germany - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-germany.xml.gz', description: 'German TV programs' }
+      { name: 'Germany - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/de/magentatv.de.epg.xml', description: 'German TV programs' },
+      { name: 'Germany - Zattoo', url: 'https://iptv-org.github.io/epg/guides/de/zattoo.com.epg.xml', description: 'German TV from Zattoo' }
     ],
     'fr': [
-      { name: 'France - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-france.xml.gz', description: 'French TV listings' }
+      { name: 'France - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/fr/telecablesat.fr.epg.xml', description: 'French TV listings' },
+      { name: 'France - Telerama', url: 'https://iptv-org.github.io/epg/guides/fr/telerama.fr.epg.xml', description: 'French TV from Telerama' }
     ],
     'it': [
-      { name: 'Italy - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-italy.xml.gz', description: 'Italian TV guide' }
+      { name: 'Italy - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/it/guidatv.sky.it.epg.xml', description: 'Italian TV guide' },
+      { name: 'Italy - Mediaset', url: 'https://iptv-org.github.io/epg/guides/it/mediaset.it.epg.xml', description: 'Italian TV from Mediaset' }
     ],
     'es': [
-      { name: 'Spain - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-spain.xml.gz', description: 'Spanish TV listings' }
+      { name: 'Spain - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/es/gatotv.com.epg.xml', description: 'Spanish TV listings' },
+      { name: 'Spain - Movistar', url: 'https://iptv-org.github.io/epg/guides/es/movistarplus.es.epg.xml', description: 'Spanish TV from Movistar' }
     ],
     
     // North America
     'us': [
       { name: 'USA - XMLTV.net', url: 'http://xmltv.net/xml_files/TV_Listings.xml', description: 'US TV listings' },
-      { name: 'USA - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-usa.xml.gz', description: 'American TV guide' }
+      { name: 'USA - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/us/tvguide.com.epg.xml', description: 'American TV guide from IPTV-ORG' },
+      { name: 'USA - DirecTV', url: 'https://iptv-org.github.io/epg/guides/us/directv.com.epg.xml', description: 'US TV from DirecTV' }
     ],
     'ca': [
-      { name: 'Canada - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-canada.xml.gz', description: 'Canadian TV listings' }
+      { name: 'Canada - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/ca/tvtv.us.epg.xml', description: 'Canadian TV listings' },
+      { name: 'Canada - Bell', url: 'https://iptv-org.github.io/epg/guides/ca/bell.ca.epg.xml', description: 'Canadian TV from Bell' }
     ],
     
     // Asia-Pacific
     'au': [
-      { name: 'Australia - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-australia.xml.gz', description: 'Australian TV guide' }
+      { name: 'Australia - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/au/ontvtonight.com.epg.xml', description: 'Australian TV guide' }
     ],
     'jp': [
-      { name: 'Japan - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-japan.xml.gz', description: 'Japanese TV listings' }
+      { name: 'Japan - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/jp/tvguide.myjcom.jp.epg.xml', description: 'Japanese TV listings' }
     ],
     
     // Middle East
     'ae': [
-      { name: 'UAE - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-uae.xml.gz', description: 'UAE TV listings' }
+      { name: 'UAE - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/ae/osn.com.epg.xml', description: 'UAE TV listings' }
     ],
     
-    // Custom for Turkey
+    // Custom for Turkey - Updated with working sources
     'tr': [
-      { name: 'Turkey - IPTV-EPG', url: 'https://epg.streamstv.me/epg/guide-turkey.xml.gz', description: 'Turkish TV guide' },
-      { name: 'Turkey - TurkEPG', url: 'https://iptv-org.github.io/epg/guides/tr/tvplus.com.tr.epg.xml', description: 'Turkish TV listings' }
+      { name: 'Turkey - Digiturk', url: 'https://iptv-org.github.io/epg/guides/tr/digiturk.com.tr.epg.xml', description: 'Turkish TV guide from Digiturk' },
+      { name: 'Turkey - TV24', url: 'https://iptv-org.github.io/epg/guides/tr/tv24.com.tr.epg.xml', description: 'Turkish TV from TV24' },
+      { name: 'Turkey - D-Smart', url: 'https://iptv-org.github.io/epg/guides/tr/dsmart.com.tr.epg.xml', description: 'Turkish TV from D-Smart' }
     ],
     
     // General sources for all countries
     'all': [
-      { name: 'International - IPTV-ORG', url: 'https://iptv-org.github.io/epg/guides/index.xml', description: 'Guide to all available EPG sources' },
+      { name: 'International - IPTV-ORG Index', url: 'https://iptv-org.github.io/epg/index.html', description: 'Guide to all available EPG sources from IPTV-ORG' },
       { name: 'Global - EPG Grabber', url: 'https://github.com/iptv-org/epg', description: 'Repository of Electronic Program Guide from different IPTV providers' }
     ]
   };
@@ -145,9 +152,9 @@ async function discoverEPGSources(countryCode: string): Promise<Array<{name: str
     return [
       ...commonPatterns['all'],
       { 
-        name: `${countryCode.toUpperCase()} - Auto-Generated`, 
-        url: `https://epg.streamstv.me/epg/guide-${countryCode}.xml.gz`, 
-        description: `Auto-generated URL for ${countryCode.toUpperCase()} EPG sources` 
+        name: `${countryCode.toUpperCase()} - IPTV-ORG`, 
+        url: `https://iptv-org.github.io/epg/guides/${countryCode.toLowerCase()}/tvguide.com.epg.xml`, 
+        description: `Auto-generated IPTV-ORG URL for ${countryCode.toUpperCase()} EPG sources` 
       }
     ];
   }
