@@ -94,6 +94,20 @@ export default function DatabaseBackupPage() {
                 They're essential for disaster recovery and server migrations.
               </p>
               
+              <Alert variant="outline" className="mb-4">
+                <RefreshCw className="h-4 w-4" />
+                <AlertTitle>Backup Best Practices</AlertTitle>
+                <AlertDescription>
+                  <p className="text-sm mb-1">For production environments, consider setting up automated backups with:</p>
+                  <ul className="list-disc pl-5 text-xs space-y-1">
+                    <li>Daily backups using a cron job with <code className="bg-muted px-1 rounded">pg_dump</code></li>
+                    <li>Offsite storage (S3, Google Cloud Storage, etc.)</li>
+                    <li>Retention policies to manage backup storage</li>
+                  </ul>
+                  <p className="text-xs mt-2">Example cron: <code className="bg-muted px-1 rounded text-xs">0 2 * * * /path/to/backup-script.sh</code> (runs daily at 2 AM)</p>
+                </AlertDescription>
+              </Alert>
+              
               <Card className="bg-muted/50">
                 <CardContent className="pt-6">
                   <div className="flex flex-col space-y-2">
@@ -161,9 +175,19 @@ export default function DatabaseBackupPage() {
               <Alert>
                 <Server className="h-4 w-4" />
                 <AlertTitle>Server Migration</AlertTitle>
-                <AlertDescription>
-                  Use this SQL file when migrating to a new server. Import it using the PostgreSQL 
-                  command: <code className="bg-muted px-1 rounded">psql -U username -d database_name {'<'} streamvy_backup.sql</code>
+                <AlertDescription className="space-y-2">
+                  <p>Use this SQL file when migrating to a new server with one of these PostgreSQL commands:</p>
+                  <div className="text-sm space-y-1 mt-2">
+                    <p className="font-medium">Recommended (bypasses peer authentication):</p>
+                    <code className="bg-muted px-1 rounded block py-1 text-xs">psql -h localhost -U username -d database_name {'<'} streamvy_backup.sql</code>
+                  </div>
+                  <div className="text-sm space-y-1 mt-2">
+                    <p className="font-medium">With password prompt:</p>
+                    <code className="bg-muted px-1 rounded block py-1 text-xs">psql -h localhost -p 5432 -U username -W -d database_name {'<'} streamvy_backup.sql</code>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Note: If you encounter "Peer authentication failed" errors, using <code className="bg-muted px-1 rounded">-h localhost</code> usually resolves the issue by forcing password authentication.
+                  </p>
                 </AlertDescription>
               </Alert>
             </div>
