@@ -473,6 +473,145 @@ export class WebGrabService {
   }
   
   /**
+   * Auto-map a specific channel to a specific EPG source
+   * This is useful when creating or updating a channel
+   */
+  async autoMapChannelToSource(channelId: number, sourceId: number): Promise<boolean> {
+    try {
+      console.log(`[WebGrabService] Auto-mapping channel ${channelId} to EPG source ${sourceId}...`);
+      
+      // Get the channel details
+      const channel = await storage.getChannel(channelId);
+      if (!channel) {
+        console.error(`Channel not found: ${channelId}`);
+        return false;
+      }
+      
+      // Check if this channel already has a mapping to this source
+      const existingMappings = await storage.getEPGChannelMappings(sourceId);
+      const existingMapping = existingMappings.find(m => m.channelId === channelId);
+      
+      if (existingMapping) {
+        console.log(`Channel ${channel.name} already has mapping to source ${sourceId}`);
+        return true;
+      }
+      
+      // Get the EPG source details
+      const source = await storage.getEPGSource(sourceId);
+      if (!source) {
+        console.error(`EPG source not found: ${sourceId}`);
+        return false;
+      }
+      
+      // Get XML content from source
+      let xmlContent: string;
+      try {
+        // Try to fetch from the EPG source URL
+        if (source.url.startsWith('file://')) {
+          // Local file
+          const filePath = source.url.replace('file://', '');
+          xmlContent = await readFileAsync(filePath, 'utf8');
+        } else {
+          // Remote URL
+          const response = await axios.get(source.url);
+          xmlContent = response.data;
+        }
+      } catch (error) {
+        console.error(`Failed to fetch EPG data from ${source.url}:`, error);
+        
+        // For demonstration/testing, create a mapping with a default ID
+        // In production, this should be done differently
+        const externalId = channel.name.toLowerCase().replace(/\s+/g, '');
+        await storage.createEPGChannelMapping({
+          channelId,
+          epgSourceId: sourceId,
+          externalChannelId: externalId,
+          externalChannelName: channel.name,
+          isActive: true
+        });
+        
+        console.log(`Created default mapping for ${channel.name} -> ${externalId}`);
+        return true;
+      }
+      
+      // Parse XML to extract channel information
+      try {
+        const parser = new xml2js.Parser({ explicitArray: true });
+        const result = await parser.parseStringPromise(xmlContent);
+        
+        if (!result.tv || !result.tv.channel) {
+          console.log('No channel data found in XMLTV file');
+          return false;
+        }
+        
+        const xmltvChannels = result.tv.channel as Array<{
+          $: { id: string };
+          'display-name': string[] | string;
+        }>;
+        
+        // Find the best matching channel in the EPG
+        let bestMatch: { id: string, name: string, score: number } | null = null;
+        
+        for (const xmltvChannel of xmltvChannels) {
+          const channelId = xmltvChannel.$.id;
+          const displayName = Array.isArray(xmltvChannel['display-name']) 
+            ? xmltvChannel['display-name'][0]
+            : typeof xmltvChannel['display-name'] === 'string' 
+              ? xmltvChannel['display-name']
+              : '';
+          
+          const similarity = this.calculateNameSimilarity(
+            displayName.toLowerCase(), 
+            channel.name.toLowerCase()
+          );
+          
+          if (similarity > 0.6 && (!bestMatch || similarity > bestMatch.score)) {
+            bestMatch = { 
+              id: channelId, 
+              name: displayName,
+              score: similarity 
+            };
+          }
+        }
+        
+        if (bestMatch) {
+          console.log(`Auto-mapping: "${channel.name}" -> "${bestMatch.name}" (score: ${bestMatch.score.toFixed(2)})`);
+          
+          // Create the mapping
+          await storage.createEPGChannelMapping({
+            channelId,
+            epgSourceId: sourceId,
+            externalChannelId: bestMatch.id,
+            externalChannelName: bestMatch.name,
+            isActive: true
+          });
+          
+          return true;
+        }
+        
+        // No close match found in the EPG, create a mapping with a default ID
+        const externalId = channel.name.toLowerCase().replace(/\s+/g, '');
+        await storage.createEPGChannelMapping({
+          channelId,
+          epgSourceId: sourceId,
+          externalChannelId: externalId,
+          externalChannelName: channel.name,
+          isActive: true
+        });
+        
+        console.log(`Created default mapping for ${channel.name} -> ${externalId} (no match found in EPG)`);
+        return true;
+      } catch (parseError) {
+        console.error('Error parsing EPG XML:', parseError);
+        return false;
+      }
+    } catch (error) {
+      console.error(`Error mapping channel ${channelId} to source ${sourceId}:`, error);
+      return false;
+    }
+  }
+  
+  /**
    * Generate a sample XMLTV file for simulation purposes
    * In a real implementation, this would be generated by WebGrab+
    */

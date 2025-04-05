@@ -556,7 +556,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Channels Management
   app.post("/api/admin/channels", ensureAdmin, async (req, res) => {
     try {
+      // Create the channel
       const channel = await storage.createChannel(req.body);
+      
+      // Automatically map the channel to EPG sources
+      try {
+        console.log(`[Routes] Attempting to auto-map newly created channel ${channel.id} (${channel.name}) to EPG sources`);
+        const epgSources = await storage.getEPGSources();
+        console.log(`[Routes] Found ${epgSources.length} EPG sources to map the channel to`);
+        
+        for (const source of epgSources) {
+          console.log(`[Routes] Mapping channel ${channel.id} (${channel.name}) to EPG source ${source.id} (${source.name})`);
+          // Try to map this channel to this EPG source
+          await webgrabService.autoMapChannelToSource(channel.id, source.id);
+        }
+      } catch (epgError) {
+        console.error("[Routes] Error auto-mapping new channel to EPG sources:", epgError);
+        // Continue with response, as the channel was created successfully
+      }
+      
       res.status(201).json(channel);
     } catch (error) {
       res.status(500).json({ message: "Failed to create channel" });
@@ -573,6 +591,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const channel = await storage.updateChannel(id, req.body);
       if (!channel) {
         return res.status(404).json({ message: "Channel not found" });
+      }
+      
+      // If the channel name was updated, try to update EPG mappings
+      if (req.body.name) {
+        try {
+          console.log(`[Routes] Attempting to update EPG mappings for channel ${channel.id} (${channel.name}) after name change`);
+          
+          // Get all EPG sources
+          const epgSources = await storage.getEPGSources();
+          console.log(`[Routes] Found ${epgSources.length} EPG sources to update mappings for`);
+          
+          // For each source, try to map or update the mapping for this channel
+          for (const source of epgSources) {
+            console.log(`[Routes] Updating mapping for channel ${channel.id} (${channel.name}) to EPG source ${source.id} (${source.name})`);
+            await webgrabService.autoMapChannelToSource(id, source.id);
+          }
+        } catch (epgError) {
+          console.error("[Routes] Error updating EPG mappings for channel:", epgError);
+          // Continue with response, as the channel was updated successfully
+        }
       }
       
       res.json(channel);
