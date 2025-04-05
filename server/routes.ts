@@ -4,6 +4,7 @@ import { z } from "zod";
 import { setupAuth } from "./auth";
 import { storage, MemStorage } from "./storage";
 import { epgService } from "./epg-service";
+import { webgrabService } from "./utils/webgrab-service";
 import cryptoPaymentsRoutes from "./routes/crypto-payments";
 import ppvRoutes from "./routes/ppv-routes";
 import userPreferencesRoutes from "./routes/user-preferences";
@@ -1004,6 +1005,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error generating WebGrab+ configuration:", error);
       res.status(500).json({ message: "Failed to generate WebGrab+ configuration: " + (error as Error).message });
+    }
+  });
+  
+  // Get available WebGrab+ site configurations
+  app.get("/api/admin/epg/webgrab/sites", ensureAdmin, async (_req, res) => {
+    try {
+      const siteConfigs = await webgrabService.getAvailableSiteConfigs();
+      res.json(siteConfigs);
+    } catch (error) {
+      console.error("Error fetching WebGrab+ site configurations:", error);
+      res.status(500).json({ message: "Failed to fetch WebGrab+ site configurations" });
+    }
+  });
+  
+  // Execute WebGrab+ for an EPG source
+  app.post("/api/admin/epg/webgrab/execute/:sourceId", ensureAdmin, async (req, res) => {
+    try {
+      const sourceId = parseInt(req.params.sourceId);
+      if (isNaN(sourceId)) {
+        return res.status(400).json({ message: "Invalid EPG source ID" });
+      }
+      
+      // Check if EPG source exists
+      const existingSource = await storage.getEPGSource(sourceId);
+      if (!existingSource) {
+        return res.status(404).json({ message: "EPG source not found" });
+      }
+      
+      const configSchema = z.object({
+        filename: z.string().default("guide.xml"),
+        mode: z.enum(['i', 'g', 'f']).default('i'),
+        timespan: z.number().min(1).max(14).default(3),
+        siteIniConfigs: z.array(z.object({
+          id: z.string(),
+          name: z.string(),
+          url: z.string()
+        })),
+        selectedChannels: z.array(z.object({
+          channelId: z.number(),
+          displayName: z.string(),
+          siteId: z.string(),
+          siteIniId: z.string()
+        }))
+      });
+      
+      const validation = configSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid WebGrab+ configuration", 
+          errors: validation.error.format() 
+        });
+      }
+      
+      // Generate WebGrab+ configuration
+      const configPath = await webgrabService.generateConfig(validation.data);
+      
+      // Execute WebGrab+
+      const result = await webgrabService.executeWebGrab(sourceId, configPath);
+      
+      if (result.success) {
+        res.json({
+          message: result.message,
+          success: true,
+          sourceId,
+          outputFile: result.outputFile
+        });
+      } else {
+        res.status(500).json({
+          message: result.message,
+          success: false,
+          sourceId
+        });
+      }
+    } catch (error) {
+      console.error("Error executing WebGrab+:", error);
+      res.status(500).json({ message: "Failed to execute WebGrab+: " + (error as Error).message });
     }
   });
   
