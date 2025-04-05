@@ -443,6 +443,94 @@ export const insertCryptoWalletAddressSchema = createInsertSchema(cryptoWalletAd
 export type CryptoWalletAddress = typeof cryptoWalletAddresses.$inferSelect;
 export type InsertCryptoWalletAddress = z.infer<typeof insertCryptoWalletAddressSchema>;
 
+// Stream Analytics - Advanced analytics for detailed streaming metrics and health monitoring
+export const streamAnalytics = pgTable("stream_analytics", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  contentType: text("content_type").notNull(), // 'movie', 'episode', 'channel'
+  contentId: integer("content_id").notNull(),
+  event: text("event").notNull(), // 'start', 'end', 'error', 'buffering', 'quality_change'
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  duration: integer("duration"), // in seconds, useful for calculating total watch time
+  quality: text("quality"), // e.g., '1080p', '720p', '480p', 'auto'
+  bandwidth: integer("bandwidth"), // in Kbps
+  location: text("location"), // Country or region code (for geo-analytics)
+  ipAddress: text("ip_address"), // Anonymized IP for geographical analysis
+  userAgent: text("user_agent"), // Device/browser information
+  error: text("error"), // Error details if event is 'error'
+  bufferingDuration: integer("buffering_duration"), // in milliseconds, for 'buffering' events
+  customData: jsonb("custom_data").default('{}'), // For additional metrics
+});
+
+export const insertStreamAnalyticsSchema = createInsertSchema(streamAnalytics).pick({
+  userId: true,
+  contentType: true,
+  contentId: true,
+  event: true,
+  timestamp: true,
+  duration: true,
+  quality: true,
+  bandwidth: true,
+  location: true,
+  ipAddress: true,
+  userAgent: true,
+  error: true,
+  bufferingDuration: true,
+  customData: true,
+});
+
+export type StreamAnalytics = typeof streamAnalytics.$inferSelect;
+export type InsertStreamAnalytics = z.infer<typeof insertStreamAnalyticsSchema>;
+
+// Geographic Restrictions table
+export const geoRestrictions = pgTable("geo_restrictions", {
+  id: serial("id").primaryKey(),
+  contentType: text("content_type").notNull(), // 'movie', 'episode', 'series', 'channel'
+  contentId: integer("content_id").notNull(),
+  restrictionType: text("restriction_type").notNull(), // 'whitelist' or 'blacklist'
+  countryCodes: jsonb("country_codes").notNull(), // Array of country codes
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertGeoRestrictionSchema = createInsertSchema(geoRestrictions).pick({
+  contentType: true,
+  contentId: true,
+  restrictionType: true,
+  countryCodes: true,
+});
+
+export type GeoRestriction = typeof geoRestrictions.$inferSelect;
+export type InsertGeoRestriction = z.infer<typeof insertGeoRestrictionSchema>;
+
+// Active Stream Tokens table - for token rotation and concurrent stream limiting
+export const activeStreamTokens = pgTable("active_stream_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  tokenId: text("token_id").notNull().unique(),
+  contentType: text("content_type").notNull(), // 'movie', 'episode', 'channel'
+  contentId: integer("content_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  lastRotatedAt: timestamp("last_rotated_at"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  isRevoked: boolean("is_revoked").default(false).notNull(),
+});
+
+export const insertActiveStreamTokenSchema = createInsertSchema(activeStreamTokens).pick({
+  userId: true,
+  tokenId: true,
+  contentType: true,
+  contentId: true,
+  expiresAt: true,
+  ipAddress: true,
+  userAgent: true,
+});
+
+export type ActiveStreamToken = typeof activeStreamTokens.$inferSelect;
+export type InsertActiveStreamToken = z.infer<typeof insertActiveStreamTokenSchema>;
+
 // PPV Content - tracks individual pay-per-view purchases
 export const ppvPurchases = pgTable("ppv_purchases", {
   id: serial("id").primaryKey(),

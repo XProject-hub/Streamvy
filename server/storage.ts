@@ -13,9 +13,16 @@ import {
   siteSettings, SiteSettings, InsertSiteSettings,
   cryptoPayments, CryptoPayment, InsertCryptoPayment,
   cryptoWalletAddresses, CryptoWalletAddress, InsertCryptoWalletAddress,
-  StreamSource
+  StreamSource,
+  // New schema entities
+  streamAnalytics, StreamAnalytics, InsertStreamAnalytics,
+  geoRestrictions, GeoRestriction, InsertGeoRestriction,
+  activeStreamTokens, ActiveStreamToken, InsertActiveStreamToken,
+  ppvPurchases, PPVPurchase, InsertPPVPurchase,
+  epgChannelMappings, EPGChannelMapping, InsertEPGChannelMapping,
+  epgImportJobs, EPGImportJob, InsertEPGImportJob
 } from "@shared/schema";
-import { and, eq, ne, lte, gte, count, desc, asc, sql } from "drizzle-orm";
+import { and, eq, ne, lte, gte, lt, count, desc, asc, sql } from "drizzle-orm";
 import { db, pool } from "./db";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -159,6 +166,33 @@ export interface IStorage {
   deactivatePPVPurchase(id: number): Promise<PPVPurchase | undefined>;
   getActivePPVPurchases(): Promise<PPVPurchase[]>;
   
+  // Stream Analytics operations
+  recordStreamAnalytics(analytics: InsertStreamAnalytics): Promise<StreamAnalytics>;
+  getStreamAnalytics(userId?: number, contentType?: string, contentId?: number): Promise<StreamAnalytics[]>;
+  getStreamAnalyticsByEvent(event: string): Promise<StreamAnalytics[]>;
+  getLatestStreamEvent(userId: number, contentType: string, contentId: number, event: string): Promise<StreamAnalytics | undefined>;
+  getStreamQualityStats(userId?: number): Promise<{ quality: string; count: number }[]>;
+  getStreamBufferingStats(userId?: number, days?: number): Promise<{ date: string; avgBufferingMs: number; count: number }[]>;
+  
+  // Stream Token operations
+  createActiveStreamToken(token: InsertActiveStreamToken): Promise<ActiveStreamToken>;
+  getActiveStreamToken(tokenId: string): Promise<ActiveStreamToken | undefined>;
+  revokeStreamToken(tokenId: string): Promise<boolean>;
+  rotateStreamToken(tokenId: string, newTokenId: string): Promise<ActiveStreamToken | undefined>;
+  getUserActiveStreamTokens(userId: number): Promise<ActiveStreamToken[]>;
+  cleanupExpiredStreamTokens(): Promise<number>;
+
+  // Geographic Restrictions operations
+  createGeoRestriction(restriction: InsertGeoRestriction): Promise<GeoRestriction>;
+  getGeoRestriction(id: number): Promise<GeoRestriction | undefined>;
+  getGeoRestrictionForContent(contentType: string, contentId: number): Promise<GeoRestriction | undefined>;
+  updateGeoRestriction(id: number, restriction: Partial<InsertGeoRestriction>): Promise<GeoRestriction | undefined>;
+  deleteGeoRestriction(id: number): Promise<boolean>;
+  checkGeoRestriction(contentType: string, contentId: number, countryCode: string): Promise<boolean>;
+  
+  // DRM & encryption operations
+  getDRMKeyForContent(contentType: string, contentId: number): Promise<string | null>;
+  
   // Session store
   sessionStore: SessionStore;
 }
@@ -182,6 +216,12 @@ export class MemStorage implements IStorage {
   private cryptoWalletAddresses: Map<number, CryptoWalletAddress>;
   private ppvPurchases: Map<number, PPVPurchase>;
   
+  // New storage maps for stream features
+  private streamAnalyticsRecords: Map<number, StreamAnalytics>;
+  private geoRestrictions: Map<number, GeoRestriction>;
+  private activeTokens: Map<string, ActiveStreamToken>;
+  private drmKeys: Map<string, string>; // content_type:content_id -> key
+  
   // Counters for IDs
   private userCounter: number;
   private categoryCounter: number;
@@ -201,6 +241,11 @@ export class MemStorage implements IStorage {
   // Session store
   public sessionStore: SessionStore;
   
+  // Additional counters for new entities
+  private streamAnalyticsCounter: number;
+  private geoRestrictionCounter: number;
+  private tokenCounter: number;
+  
   constructor() {
     this.users = new Map();
     this.categories = new Map();
@@ -217,6 +262,12 @@ export class MemStorage implements IStorage {
     this.cryptoWalletAddresses = new Map();
     this.ppvPurchases = new Map();
     
+    // Initialize new storage maps
+    this.streamAnalyticsRecords = new Map();
+    this.geoRestrictions = new Map();
+    this.activeTokens = new Map();
+    this.drmKeys = new Map();
+    
     this.userCounter = 1;
     this.categoryCounter = 1;
     this.countryCounter = 1;
@@ -231,6 +282,11 @@ export class MemStorage implements IStorage {
     this.cryptoPaymentCounter = 1;
     this.cryptoWalletAddressCounter = 1;
     this.ppvPurchaseCounter = 1;
+    
+    // Initialize new counters
+    this.streamAnalyticsCounter = 1;
+    this.geoRestrictionCounter = 1;
+    this.tokenCounter = 1;
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // Clear expired sessions once a day
@@ -271,7 +327,12 @@ export class MemStorage implements IStorage {
       ...insertUser, 
       id,
       isAdmin: insertUser.isAdmin ?? false,
-      createdAt: now
+      createdAt: now,
+      isPremium: insertUser.isPremium ?? false,
+      premiumPlan: insertUser.premiumPlan || null,
+      premiumExpiry: insertUser.premiumExpiry || null,
+      stripeCustomerId: insertUser.stripeCustomerId || null,
+      stripeSubscriptionId: insertUser.stripeSubscriptionId || null
     };
     this.users.set(id, user);
     return user;
@@ -682,6 +743,255 @@ export class MemStorage implements IStorage {
   private epgImportJobs: Map<number, EPGImportJob> = new Map();
   private epgImportJobCounter: number = 1;
   
+  // Stream Token operations
+  async createActiveStreamToken(token: InsertActiveStreamToken): Promise<ActiveStreamToken> {
+    const now = new Date();
+    const newToken: ActiveStreamToken = {
+      ...token,
+      id: this.tokenCounter++,
+      createdAt: now,
+      lastRotatedAt: null,
+      isRevoked: false,
+      ipAddress: token.ipAddress || null,
+      userAgent: token.userAgent || null
+    };
+    
+    this.activeTokens.set(token.tokenId, newToken);
+    return newToken;
+  }
+  
+  async getActiveStreamToken(tokenId: string): Promise<ActiveStreamToken | undefined> {
+    return this.activeTokens.get(tokenId);
+  }
+  
+  async revokeStreamToken(tokenId: string): Promise<boolean> {
+    return this.activeTokens.delete(tokenId);
+  }
+  
+  async rotateStreamToken(tokenId: string, newTokenId: string): Promise<ActiveStreamToken | undefined> {
+    const token = this.activeTokens.get(tokenId);
+    if (!token) return undefined;
+    
+    // Create a new token with the new ID but retain other properties
+    const now = new Date();
+    const newToken: ActiveStreamToken = {
+      ...token,
+      tokenId: newTokenId,
+      lastRotatedAt: now
+    };
+    
+    // Delete the old token and add the new one
+    this.activeTokens.delete(tokenId);
+    this.activeTokens.set(newTokenId, newToken);
+    
+    return newToken;
+  }
+  
+  async getUserActiveStreamTokens(userId: number): Promise<ActiveStreamToken[]> {
+    return Array.from(this.activeTokens.values())
+      .filter(token => token.userId === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  
+  async cleanupExpiredStreamTokens(): Promise<number> {
+    const now = new Date();
+    let removedCount = 0;
+    
+    Array.from(this.activeTokens.entries()).forEach(([tokenId, token]) => {
+      if (token.expiresAt < now) {
+        this.activeTokens.delete(tokenId);
+        removedCount++;
+      }
+    });
+    
+    return removedCount;
+  }
+  
+  // Geographic Restrictions operations
+  async createGeoRestriction(restriction: InsertGeoRestriction): Promise<GeoRestriction> {
+    const id = this.geoRestrictionCounter++;
+    const now = new Date();
+    const newRestriction: GeoRestriction = {
+      ...restriction,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.geoRestrictions.set(id, newRestriction);
+    return newRestriction;
+  }
+  
+  async getGeoRestriction(id: number): Promise<GeoRestriction | undefined> {
+    return this.geoRestrictions.get(id);
+  }
+  
+  async getGeoRestrictionForContent(contentType: string, contentId: number): Promise<GeoRestriction | undefined> {
+    return Array.from(this.geoRestrictions.values())
+      .find(restriction => 
+        restriction.contentType === contentType && 
+        restriction.contentId === contentId
+      );
+  }
+  
+  async updateGeoRestriction(id: number, restriction: Partial<InsertGeoRestriction>): Promise<GeoRestriction | undefined> {
+    const existingRestriction = this.geoRestrictions.get(id);
+    if (!existingRestriction) return undefined;
+    
+    const updatedRestriction = { ...existingRestriction, ...restriction };
+    this.geoRestrictions.set(id, updatedRestriction);
+    return updatedRestriction;
+  }
+  
+  async deleteGeoRestriction(id: number): Promise<boolean> {
+    return this.geoRestrictions.delete(id);
+  }
+  
+  async checkGeoRestriction(contentType: string, contentId: number, countryCode: string): Promise<boolean> {
+    const restriction = await this.getGeoRestrictionForContent(contentType, contentId);
+    
+    if (!restriction) {
+      // No restrictions, content is allowed
+      return true;
+    }
+    
+    // Check if country code is in the array of country codes
+    const countryCodes = restriction.countryCodes as string[];
+    const countryInList = countryCodes.includes(countryCode);
+    
+    if (restriction.restrictionType === 'whitelist') {
+      // Whitelist mode - only allowed countries can access
+      return countryInList;
+    } else {
+      // Blacklist mode - all countries except restricted ones can access
+      return !countryInList;
+    }
+  }
+  
+  // DRM & encryption operations
+  async getDRMKeyForContent(contentType: string, contentId: number): Promise<string | null> {
+    const key = this.drmKeys.get(`${contentType}:${contentId}`);
+    return key || null;
+  }
+  
+  // Stream Analytics operations
+  async recordStreamAnalytics(analytics: InsertStreamAnalytics): Promise<StreamAnalytics> {
+    const id = this.streamAnalyticsCounter++;
+    const now = new Date();
+    const record: StreamAnalytics = {
+      ...analytics,
+      id,
+      timestamp: analytics.timestamp || now,
+      duration: analytics.duration || null,
+      quality: analytics.quality || null,
+      bandwidth: analytics.bandwidth || null,
+      location: analytics.location || null,
+      ipAddress: analytics.ipAddress || null,
+      bufferingDuration: analytics.bufferingDuration || null,
+      customData: analytics.customData || null
+    };
+    this.streamAnalyticsRecords.set(id, record);
+    return record;
+  }
+  
+  async getStreamAnalytics(userId?: number, contentType?: string, contentId?: number): Promise<StreamAnalytics[]> {
+    let records = Array.from(this.streamAnalyticsRecords.values());
+    
+    if (userId !== undefined) {
+      records = records.filter(record => record.userId === userId);
+    }
+    
+    if (contentType !== undefined) {
+      records = records.filter(record => record.contentType === contentType);
+    }
+    
+    if (contentId !== undefined) {
+      records = records.filter(record => record.contentId === contentId);
+    }
+    
+    // Sort by timestamp, newest first
+    return records.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }
+  
+  async getStreamAnalyticsByEvent(event: string): Promise<StreamAnalytics[]> {
+    const records = Array.from(this.streamAnalyticsRecords.values())
+      .filter(record => record.event === event)
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    
+    return records;
+  }
+  
+  async getLatestStreamEvent(userId: number, contentType: string, contentId: number, event: string): Promise<StreamAnalytics | undefined> {
+    const records = Array.from(this.streamAnalyticsRecords.values())
+      .filter(record => 
+        record.userId === userId && 
+        record.contentType === contentType && 
+        record.contentId === contentId && 
+        record.event === event
+      )
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    
+    return records.length > 0 ? records[0] : undefined;
+  }
+  
+  async getStreamQualityStats(userId?: number): Promise<{ quality: string; count: number }[]> {
+    let records = Array.from(this.streamAnalyticsRecords.values())
+      .filter(record => record.quality !== null && record.quality !== undefined);
+    
+    if (userId !== undefined) {
+      records = records.filter(record => record.userId === userId);
+    }
+    
+    const qualityMap = new Map<string, number>();
+    
+    records.forEach(record => {
+      if (record.quality) {
+        const count = qualityMap.get(record.quality) || 0;
+        qualityMap.set(record.quality, count + 1);
+      }
+    });
+    
+    return Array.from(qualityMap.entries()).map(([quality, count]) => ({ quality, count }));
+  }
+  
+  async getStreamBufferingStats(userId?: number, days: number = 7): Promise<{ date: string; avgBufferingMs: number; count: number }[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    
+    let records = Array.from(this.streamAnalyticsRecords.values())
+      .filter(record => 
+        record.event === 'buffering' && 
+        record.timestamp >= cutoffDate && 
+        record.bufferingDuration !== null && 
+        record.bufferingDuration !== undefined
+      );
+    
+    if (userId !== undefined) {
+      records = records.filter(record => record.userId === userId);
+    }
+    
+    const bufferingByDate = new Map<string, { total: number; count: number }>();
+    
+    records.forEach(record => {
+      if (record.bufferingDuration !== null && record.bufferingDuration !== undefined) {
+        const dateStr = record.timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
+        const existing = bufferingByDate.get(dateStr) || { total: 0, count: 0 };
+        
+        existing.total += record.bufferingDuration;
+        existing.count += 1;
+        
+        bufferingByDate.set(dateStr, existing);
+      }
+    });
+    
+    return Array.from(bufferingByDate.entries())
+      .map(([date, { total, count }]) => ({
+        date,
+        avgBufferingMs: Math.round(total / count),
+        count
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date)); // Sort by date ascending
+  }
+  
   async getEPGImportJobs(epgSourceId?: number): Promise<EPGImportJob[]> {
     const allJobs = Array.from(this.epgImportJobs.values())
       .sort((a, b) => b.startTime.getTime() - a.startTime.getTime()); // Most recent first
@@ -698,10 +1008,13 @@ export class MemStorage implements IStorage {
   
   async createEPGImportJob(job: InsertEPGImportJob): Promise<EPGImportJob> {
     const id = this.epgImportJobCounter++;
+    const now = new Date();
     const newJob: EPGImportJob = {
       ...job,
       id,
       status: job.status || 'pending',
+      startTime: job.startTime || now,
+      endTime: job.endTime || null,
       programsImported: job.programsImported || 0,
       channelsImported: job.channelsImported || 0,
       errors: job.errors || [],
@@ -1165,7 +1478,9 @@ export class MemStorage implements IStorage {
       ...purchase,
       id,
       purchasedAt: now,
-      status: purchase.status || 'pending'
+      status: purchase.status || 'pending',
+      isActive: purchase.isActive !== undefined ? purchase.isActive : true,
+      paymentId: purchase.paymentId || null
     };
     this.ppvPurchases.set(id, newPurchase);
     return newPurchase;
@@ -1316,7 +1631,12 @@ export class MemStorage implements IStorage {
       username: "admin",
       password: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8.dddddddddddddddddddddddddddddddd",
       isAdmin: true,
-      createdAt: new Date()
+      createdAt: new Date(),
+      isPremium: false,
+      premiumPlan: null,
+      premiumExpiry: null,
+      stripeCustomerId: null,
+      stripeSubscriptionId: null
     };
     this.users.set(1, adminUser);
     
@@ -2160,7 +2480,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
+    // Make sure premium fields have defaults if not provided
+    const userToInsert = {
+      ...insertUser,
+      isPremium: insertUser.isPremium ?? false,
+      premiumPlan: insertUser.premiumPlan || null,
+      premiumExpiry: insertUser.premiumExpiry || null,
+      stripeCustomerId: insertUser.stripeCustomerId || null,
+      stripeSubscriptionId: insertUser.stripeSubscriptionId || null
+    };
+    
+    const [user] = await db.insert(users).values(userToInsert).returning();
     return user;
   }
 
@@ -2333,11 +2663,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createChannel(channel: InsertChannel): Promise<Channel> {
-    // Ensure status has a default value if not provided
+    // Ensure status and other fields have default values if not provided
     const channelWithDefaults = {
       ...channel,
       status: channel.status || 'unknown',
-      lastChecked: channel.lastChecked || null
+      lastChecked: channel.lastChecked || null,
+      isPremium: channel.isPremium ?? false // Explicitly set default for isPremium
     };
     
     const [newChannel] = await db
@@ -2430,9 +2761,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createProgram(program: InsertProgram): Promise<Program> {
+    // Ensure optional fields have proper defaults
+    const programWithDefaults = {
+      ...program,
+      description: program.description ?? null,
+      category: program.category ?? null,
+      posterUrl: program.posterUrl ?? null,
+      episodeTitle: program.episodeTitle ?? null,
+      episodeNumber: program.episodeNumber ?? null,
+      season: program.season ?? null,
+      year: program.year ?? null,
+      director: program.director ?? null,
+      cast: program.cast ?? null,
+      rating: program.rating ?? null,
+      externalId: program.externalId ?? null
+    };
+    
     const [newProgram] = await db
       .insert(programs)
-      .values(program)
+      .values(programWithDefaults)
       .returning();
     return newProgram;
   }
@@ -2963,6 +3310,262 @@ export class DatabaseStorage implements IStorage {
       planName: user.premiumPlan,
       expiryDate: user.premiumExpiry
     };
+  }
+  
+  // Stream Analytics operations
+  async recordStreamAnalytics(analytics: InsertStreamAnalytics): Promise<StreamAnalytics> {
+    const [record] = await db.insert(streamAnalytics).values(analytics).returning();
+    return record;
+  }
+  
+  async getStreamAnalytics(userId?: number, contentType?: string, contentId?: number): Promise<StreamAnalytics[]> {
+    let query = db.select().from(streamAnalytics);
+    
+    if (userId !== undefined) {
+      query = query.where(eq(streamAnalytics.userId, userId));
+    }
+    
+    if (contentType !== undefined) {
+      query = query.where(eq(streamAnalytics.contentType, contentType));
+    }
+    
+    if (contentId !== undefined) {
+      query = query.where(eq(streamAnalytics.contentId, contentId));
+    }
+    
+    const records = await query.orderBy(desc(streamAnalytics.timestamp));
+    return records;
+  }
+  
+  async getStreamAnalyticsByEvent(event: string): Promise<StreamAnalytics[]> {
+    const records = await db.select()
+      .from(streamAnalytics)
+      .where(eq(streamAnalytics.event, event))
+      .orderBy(desc(streamAnalytics.timestamp));
+    
+    return records;
+  }
+  
+  async getLatestStreamEvent(userId: number, contentType: string, contentId: number, event: string): Promise<StreamAnalytics | undefined> {
+    const [record] = await db.select()
+      .from(streamAnalytics)
+      .where(
+        and(
+          eq(streamAnalytics.userId, userId),
+          eq(streamAnalytics.contentType, contentType),
+          eq(streamAnalytics.contentId, contentId),
+          eq(streamAnalytics.event, event)
+        )
+      )
+      .orderBy(desc(streamAnalytics.timestamp))
+      .limit(1);
+    
+    return record;
+  }
+  
+  async getStreamQualityStats(userId?: number): Promise<{ quality: string; count: number }[]> {
+    let query = sql`
+      SELECT quality, COUNT(*) as count
+      FROM ${streamAnalytics}
+      WHERE quality IS NOT NULL
+    `;
+    
+    if (userId !== undefined) {
+      query = sql`
+        SELECT quality, COUNT(*) as count
+        FROM ${streamAnalytics}
+        WHERE quality IS NOT NULL AND user_id = ${userId}
+      `;
+    }
+    
+    query = sql`${query} GROUP BY quality`;
+    
+    const result = await db.execute(query);
+    return result.rows.map(row => ({
+      quality: row.quality as string,
+      count: Number(row.count)
+    }));
+  }
+  
+  async getStreamBufferingStats(userId?: number, days: number = 7): Promise<{ date: string; avgBufferingMs: number; count: number }[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    
+    let query = sql`
+      SELECT 
+        DATE(timestamp) as date, 
+        AVG(buffering_duration) as avg_buffering_ms,
+        COUNT(*) as count
+      FROM ${streamAnalytics}
+      WHERE 
+        event = 'buffering' 
+        AND timestamp >= ${cutoffDate} 
+        AND buffering_duration IS NOT NULL
+    `;
+    
+    if (userId !== undefined) {
+      query = sql`
+        SELECT 
+          DATE(timestamp) as date, 
+          AVG(buffering_duration) as avg_buffering_ms,
+          COUNT(*) as count
+        FROM ${streamAnalytics}
+        WHERE 
+          event = 'buffering' 
+          AND timestamp >= ${cutoffDate} 
+          AND buffering_duration IS NOT NULL
+          AND user_id = ${userId}
+      `;
+    }
+    
+    query = sql`${query} GROUP BY DATE(timestamp) ORDER BY date ASC`;
+    
+    const result = await db.execute(query);
+    return result.rows.map(row => ({
+      date: row.date as string,
+      avgBufferingMs: Math.round(Number(row.avg_buffering_ms)),
+      count: Number(row.count)
+    }));
+  }
+  
+  // Stream Token operations
+  async createActiveStreamToken(token: InsertActiveStreamToken): Promise<ActiveStreamToken> {
+    const [newToken] = await db.insert(activeStreamTokens).values(token).returning();
+    return newToken;
+  }
+  
+  async getActiveStreamToken(tokenId: string): Promise<ActiveStreamToken | undefined> {
+    const [token] = await db.select()
+      .from(activeStreamTokens)
+      .where(eq(activeStreamTokens.tokenId, tokenId));
+    
+    return token;
+  }
+  
+  async revokeStreamToken(tokenId: string): Promise<boolean> {
+    const result = await db.delete(activeStreamTokens)
+      .where(eq(activeStreamTokens.tokenId, tokenId));
+    
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+  
+  async rotateStreamToken(tokenId: string, newTokenId: string): Promise<ActiveStreamToken | undefined> {
+    // First, get the old token
+    const [oldToken] = await db.select()
+      .from(activeStreamTokens)
+      .where(eq(activeStreamTokens.tokenId, tokenId));
+    
+    if (!oldToken) return undefined;
+    
+    const now = new Date();
+    
+    // Start a transaction to ensure atomicity
+    return await db.transaction(async (tx) => {
+      // Delete the old token
+      await tx.delete(activeStreamTokens)
+        .where(eq(activeStreamTokens.tokenId, tokenId));
+      
+      // Create a new token with the new ID but retain other properties
+      const [newToken] = await tx.insert(activeStreamTokens)
+        .values({
+          ...oldToken,
+          tokenId: newTokenId,
+          issuedAt: now,
+          lastAccessed: now
+        })
+        .returning();
+      
+      return newToken;
+    });
+  }
+  
+  async getUserActiveStreamTokens(userId: number): Promise<ActiveStreamToken[]> {
+    const tokens = await db.select()
+      .from(activeStreamTokens)
+      .where(eq(activeStreamTokens.userId, userId))
+      .orderBy(desc(activeStreamTokens.lastAccessed));
+    
+    return tokens;
+  }
+  
+  async cleanupExpiredStreamTokens(): Promise<number> {
+    const now = new Date();
+    const result = await db.delete(activeStreamTokens)
+      .where(
+        lte(activeStreamTokens.expiresAt, now)
+      );
+    
+    return result.rowCount ? result.rowCount : 0;
+  }
+  
+  // Geographic Restrictions operations
+  async createGeoRestriction(restriction: InsertGeoRestriction): Promise<GeoRestriction> {
+    const [newRestriction] = await db.insert(geoRestrictions).values(restriction).returning();
+    return newRestriction;
+  }
+  
+  async getGeoRestriction(id: number): Promise<GeoRestriction | undefined> {
+    const [restriction] = await db.select()
+      .from(geoRestrictions)
+      .where(eq(geoRestrictions.id, id));
+    
+    return restriction;
+  }
+  
+  async getGeoRestrictionForContent(contentType: string, contentId: number): Promise<GeoRestriction | undefined> {
+    const [restriction] = await db.select()
+      .from(geoRestrictions)
+      .where(
+        and(
+          eq(geoRestrictions.contentType, contentType),
+          eq(geoRestrictions.contentId, contentId)
+        )
+      );
+    
+    return restriction;
+  }
+  
+  async updateGeoRestriction(id: number, restriction: Partial<InsertGeoRestriction>): Promise<GeoRestriction | undefined> {
+    const [updatedRestriction] = await db.update(geoRestrictions)
+      .set(restriction)
+      .where(eq(geoRestrictions.id, id))
+      .returning();
+    
+    return updatedRestriction;
+  }
+  
+  async deleteGeoRestriction(id: number): Promise<boolean> {
+    const result = await db.delete(geoRestrictions)
+      .where(eq(geoRestrictions.id, id));
+    
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+  
+  async checkGeoRestriction(contentType: string, contentId: number, countryCode: string): Promise<boolean> {
+    const restriction = await this.getGeoRestrictionForContent(contentType, contentId);
+    
+    if (!restriction) {
+      // No restrictions, content is allowed
+      return true;
+    }
+    
+    // Check if country code is in the array of country codes
+    const countryCodes = restriction.countryCodes as string[];
+    const countryInList = countryCodes.includes(countryCode);
+    
+    if (restriction.restrictionType === 'whitelist') {
+      // Whitelist mode - only allowed countries can access
+      return countryInList;
+    } else {
+      // Blacklist mode - all countries except restricted ones can access
+      return !countryInList;
+    }
+  }
+  
+  // DRM & encryption operations
+  async getDRMKeyForContent(contentType: string, contentId: number): Promise<string | null> {
+    // This would connect to a DRM key server or database - for now just return null
+    return null;
   }
 }
 
