@@ -3179,6 +3179,17 @@ export class DatabaseStorage implements IStorage {
         return false;
       }
       
+      // First, delete all related EPG import jobs
+      await db
+        .delete(epgImportJobs)
+        .where(eq(epgImportJobs.epgSourceId, id));
+      
+      // Then, delete all related channel mappings
+      await db
+        .delete(epgChannelMappings)
+        .where(eq(epgChannelMappings.epgSourceId, id));
+      
+      // Finally, delete the EPG source
       const result = await db
         .delete(epgSources)
         .where(eq(epgSources.id, id))
@@ -3187,7 +3198,7 @@ export class DatabaseStorage implements IStorage {
       return result.length > 0;
     } catch (error) {
       console.error("Error deleting EPG source:", error);
-      return false;
+      throw error; // Rethrow the error for better error handling in routes
     }
   }
   
