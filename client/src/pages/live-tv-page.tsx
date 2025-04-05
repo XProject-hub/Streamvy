@@ -105,6 +105,10 @@ export default function LiveTvPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {filteredChannels?.map((channel) => {
             const program = currentPrograms?.find(p => p.channelId === channel.id);
+            const now = new Date();
+            const isLiveProgram = program && 
+              new Date(program.startTime) <= now && 
+              new Date(program.endTime) >= now;
             
             return (
               <ContentCard
@@ -131,6 +135,10 @@ export default function LiveTvPage() {
                       : undefined) 
                     : undefined
                 }
+                // Program progress info
+                programStartTime={isLiveProgram ? program.startTime : undefined}
+                programEndTime={isLiveProgram ? program.endTime : undefined}
+                isCurrentProgram={isLiveProgram}
               />
             );
           })}

@@ -218,7 +218,14 @@ export class EPGService {
       channelMappings.map((mapping: EPGChannelMapping) => [mapping.externalChannelId, mapping.channelId])
     );
     
+    console.log(`Processing ${programmes.length} programs for source ID ${sourceId}`);
+    console.log(`Found ${channelMappings.length} channel mappings for this source`);
+    
+    let processedCount = 0;
+    let insertedCount = 0;
+    
     for (const programme of programmes) {
+      processedCount++;
       const externalChannelId = programme.$.channel;
       const internalChannelId = channelMap.get(externalChannelId);
       
@@ -247,7 +254,8 @@ export class EPGService {
       
       if (programme['episode-num'] && programme['episode-num'].length > 0) {
         const episodeNum = programme['episode-num'][0];
-        const match = episodeNum.match(/^(\\d+).(\\d+)/);
+        // Fix the regex pattern to handle proper backslashes
+        const match = episodeNum.match(/^(\d+)\.(\d+)/);
         if (match) {
           season = parseInt(match[1]) + 1; // XMLTV uses 0-based seasons
           episode = parseInt(match[2]) + 1; // XMLTV uses 0-based episodes
@@ -258,7 +266,7 @@ export class EPGService {
       let year: number | undefined;
       if (programme.date && programme.date.length > 0) {
         const yearStr = programme.date[0];
-        if (yearStr.match(/^\\d{4}$/)) {
+        if (yearStr.match(/^\d{4}$/)) {
           year = parseInt(yearStr);
         }
       }
@@ -275,40 +283,58 @@ export class EPGService {
         category = programme.category[0];
       }
       
-      // Create program object
+      // Create program object with proper field handling
       const programData: InsertProgram = {
         channelId: internalChannelId,
         title: programme.title[0],
         startTime,
         endTime,
-        description: programme.desc && programme.desc.length > 0 ? programme.desc[0] : undefined,
-        category,
-        episodeTitle,
-        season,
-        episode,
-        year,
-        directors: directors.length > 0 ? directors : undefined,
-        castMembers: castMembers.length > 0 ? castMembers : undefined,
-        externalId: `${externalChannelId}:${startTime.toISOString()}`
+        description: programme.desc && programme.desc.length > 0 ? programme.desc[0] : null,
+        category: category || null,
+        posterUrl: null, // XMLTV doesn't typically include poster URLs
+        episodeTitle: episodeTitle || null,
+        season: season || null,
+        episode: episode || null,
+        year: year || null,
+        directors: directors.length > 0 ? directors : [],
+        castMembers: castMembers.length > 0 ? castMembers : [],
+        rating: null,
+        isFeatured: false,
+        externalId: externalChannelId // Store the external channel ID to help with mappings
       };
       
-      // Check if this program already exists to avoid duplicates
-      const existingPrograms = await db.query.programs.findMany({
-        where: (programs, { and, eq }) => and(
-          eq(programs.channelId, programData.channelId),
-          eq(programs.startTime, programData.startTime),
-          eq(programs.title, programData.title)
-        ),
-        limit: 1
-      });
+      try {
+        // Check if this program already exists to avoid duplicates
+        const existingPrograms = await db.query.programs.findMany({
+          where: (programs, { and, eq }) => and(
+            eq(programs.channelId, programData.channelId),
+            eq(programs.startTime, programData.startTime),
+            eq(programs.title, programData.title)
+          ),
+          limit: 1
+        });
+        
+        if (existingPrograms.length === 0) {
+          // Insert new program
+          const newProgram = await storage.createProgram(programData);
+          importedPrograms.push(programData);
+          insertedCount++;
+          
+          if (insertedCount % 10 === 0) {
+            console.log(`Inserted ${insertedCount} programs so far...`);
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to process program: ${programData.title}`, error);
+      }
       
-      if (existingPrograms.length === 0) {
-        // Insert new program
-        const newProgram = await storage.createProgram(programData);
-        importedPrograms.push(programData);
+      // Log progress occasionally
+      if (processedCount % 100 === 0) {
+        console.log(`Processed ${processedCount}/${programmes.length} programs...`);
       }
     }
     
+    console.log(`Import complete: Processed ${processedCount} programs, inserted ${insertedCount} new programs`);
     return importedPrograms;
   }
 
@@ -318,7 +344,7 @@ export class EPGService {
   private parseXMLTVDate(dateString: string): Date | null {
     try {
       // XMLTV format: 20230418230000 +0100
-      const regex = /^(\\d{4})(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2}) ([+-]\\d{4})$/;
+      const regex = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2}) ([+-]\d{4})$/;
       const match = dateString.match(regex);
       
       if (!match) return null;

@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
+import { ProgramProgressBar } from "./ProgramProgressBar";
 
 interface ContentCardProps {
   id: number;
@@ -17,6 +18,9 @@ interface ContentCardProps {
   status?: 'online' | 'offline' | 'unknown';
   countryCode?: string;
   countryFlag?: string;
+  programStartTime?: Date | string;
+  programEndTime?: Date | string;
+  isCurrentProgram?: boolean;
 }
 
 export function ContentCard({
@@ -33,7 +37,10 @@ export function ContentCard({
   onClick,
   status = 'unknown',
   countryCode,
-  countryFlag
+  countryFlag,
+  programStartTime,
+  programEndTime,
+  isCurrentProgram = false
 }: ContentCardProps) {
   const [_, setLocation] = useLocation();
 
@@ -106,7 +113,12 @@ export function ContentCard({
       
       <div className="p-3">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-medium text-sm truncate">{title}</h3>
+          <h3 className={cn(
+            "font-medium text-sm truncate",
+            isCurrentProgram && "text-primary font-semibold"
+          )}>
+            {title}
+          </h3>
           <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 whitespace-nowrap">{category}</span>
         </div>
         
@@ -118,6 +130,16 @@ export function ContentCard({
           )}
           <p className="truncate">{subDetail}</p>
         </div>
+        
+        {/* Program progress bar - only show for current programs with start and end times */}
+        {isCurrentProgram && programStartTime && programEndTime && (
+          <div className="mt-2">
+            <ProgramProgressBar 
+              startTime={programStartTime} 
+              endTime={programEndTime}
+            />
+          </div>
+        )}
       </div>
     </Card>
   );

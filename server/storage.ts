@@ -471,9 +471,68 @@ export class MemStorage implements IStorage {
   }
   
   async getChannelPrograms(channelId: number): Promise<Program[]> {
-    return Array.from(this.programs.values()).filter(
-      (program) => program.channelId === channelId
-    );
+    try {
+      // First try to get the channel to check if it has an EPG ID
+      const channel = await this.getChannel(channelId);
+      
+      if (!channel || !channel.epgId) {
+        // If no channel or no EPG ID, just return programs directly mapped to this channel
+        return Array.from(this.programs.values()).filter(
+          (program) => program.channelId === channelId
+        );
+      }
+      
+      // If we have an EPG ID, check for mappings
+      const directPrograms = Array.from(this.programs.values()).filter(
+        (program) => program.channelId === channelId
+      );
+      
+      if (directPrograms.length > 0) {
+        console.log(`Found ${directPrograms.length} programs for channel ${channelId} with direct mapping`);
+        return directPrograms;
+      }
+      
+      // If no directly mapped programs, look for EPG channel mappings
+      console.log(`Checking EPG mappings for channel ${channelId} with EPG ID ${channel.epgId}`);
+      
+      // Get all mappings for this channel across all EPG sources
+      const mappings = Array.from(this.epgChannelMappings.values()).filter(
+        (mapping) => mapping.channelId === channelId
+      );
+      
+      if (mappings.length === 0) {
+        console.log(`No EPG mappings found for channel ${channelId}`);
+        return [];
+      }
+      
+      // For each mapping, get the programs that match the externalChannelId
+      const allPrograms: Program[] = [];
+      
+      for (const mapping of mappings) {
+        console.log(`Checking programs for mapping: Channel ${channelId} -> External ID ${mapping.externalChannelId}`);
+        
+        // Get all programs where the externalId matches the mapping's externalChannelId
+        const mappedPrograms = Array.from(this.programs.values()).filter(
+          (program) => program.externalId === mapping.externalChannelId
+        );
+        
+        console.log(`Found ${mappedPrograms.length} programs for external ID ${mapping.externalChannelId}`);
+        
+        // Add these programs to our result, but change the channelId to match our channel
+        const programsWithCorrectChannel = mappedPrograms.map(p => ({
+          ...p,
+          channelId: channelId
+        }));
+        
+        allPrograms.push(...programsWithCorrectChannel);
+      }
+      
+      console.log(`Returning a total of ${allPrograms.length} programs for channel ${channelId}`);
+      return allPrograms;
+    } catch (error) {
+      console.error("Error getting channel programs:", error);
+      return [];
+    }
   }
   
   async createProgram(program: InsertProgram): Promise<Program> {
@@ -2754,10 +2813,75 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getChannelPrograms(channelId: number): Promise<Program[]> {
-    return await db
-      .select()
-      .from(programs)
-      .where(eq(programs.channelId, channelId));
+    try {
+      // First try to get the channel to check if it has an EPG ID
+      const channel = await this.getChannel(channelId);
+      
+      if (!channel || !channel.epgId) {
+        // If no channel or no EPG ID, just return programs directly mapped to this channel
+        return await db
+          .select()
+          .from(programs)
+          .where(eq(programs.channelId, channelId));
+      }
+      
+      // Find all EPG sources
+      const epgSources = await this.getEPGSources();
+      
+      // If we have an EPG ID, check for mappings across all sources
+      const programsResult = await db
+        .select()
+        .from(programs)
+        .where(eq(programs.channelId, channelId));
+      
+      if (programsResult.length > 0) {
+        console.log(`Found ${programsResult.length} programs for channel ${channelId} with direct mapping`);
+        return programsResult;
+      }
+      
+      // If no directly mapped programs, look for EPG channel mappings
+      console.log(`Checking EPG mappings for channel ${channelId} with EPG ID ${channel.epgId}`);
+      
+      // Get all mappings for this channel across all EPG sources
+      const mappings = await db
+        .select()
+        .from(epgChannelMappings)
+        .where(eq(epgChannelMappings.channelId, channelId));
+      
+      if (mappings.length === 0) {
+        console.log(`No EPG mappings found for channel ${channelId}`);
+        return [];
+      }
+      
+      // For each mapping, get the programs that match the externalChannelId
+      const allPrograms: Program[] = [];
+      
+      for (const mapping of mappings) {
+        console.log(`Checking programs for mapping: Channel ${channelId} -> External ID ${mapping.externalChannelId}`);
+        
+        // Get all programs where the externalId matches the mapping's externalChannelId
+        const mappedPrograms = await db
+          .select()
+          .from(programs)
+          .where(eq(programs.externalId, mapping.externalChannelId));
+        
+        console.log(`Found ${mappedPrograms.length} programs for external ID ${mapping.externalChannelId}`);
+        
+        // Add these programs to our result, but change the channelId to match our channel
+        const programsWithCorrectChannel = mappedPrograms.map(p => ({
+          ...p,
+          channelId: channelId
+        }));
+        
+        allPrograms.push(...programsWithCorrectChannel);
+      }
+      
+      console.log(`Returning a total of ${allPrograms.length} programs for channel ${channelId}`);
+      return allPrograms;
+    } catch (error) {
+      console.error("Error getting channel programs:", error);
+      return [];
+    }
   }
 
   async createProgram(program: InsertProgram): Promise<Program> {
